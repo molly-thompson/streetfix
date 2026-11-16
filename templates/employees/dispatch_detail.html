@@ -51,7 +51,14 @@
             </dd>
             <dt>Location</dt>
             <dd>
-              {{ work_item.latitude }}, {{ work_item.longitude }}
+              {{ address }}
+              <div class="small">
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query={{ work_item.latitude }},{{ work_item.longitude }}"
+                  rel="noopener"
+                  target="_blank"
+                >Open in Maps</a>
+              </div>
             </dd>
           </dl>
         </div>

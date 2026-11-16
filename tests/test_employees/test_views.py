@@ -5,10 +5,12 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import Client
 from django.urls import resolve, reverse
 from django.utils import timezone
 
+from employees import geo
 from employees.dispatch import assign_work
 from employees.organisation_models import Employee
 from employees.views import EmployeeDashboardView
@@ -242,3 +244,23 @@ def test_unknown_stage_shows_all_dispatch(
 
     assert response.context["stage"] == ""
     assert len(response.context["unassigned"]) == 1
+
+
+def test_job_page_shows_the_street_address(
+    manager_client: Client,
+    make_work_item: MakeWorkItem,
+    settings: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The manager's job page names the street instead of raw coordinates."""
+    settings.REVERSE_GEOCODING = True  # type: ignore[attr-defined]
+    cache.clear()
+    monkeypatch.setattr(geo, "_lookup", lambda lat, lng: "Leek Street, Digbeth, B4 7FW")
+    item = set_status(make_work_item(), "TRIAGED")
+
+    content = manager_client.get(
+        reverse("employees:dispatch_detail", args=[item.pk])
+    ).content.decode()
+
+    assert "Leek Street, Digbeth, B4 7FW" in content
+    assert "google.com/maps/search/?api=1&query=51.500000,-0.120000" in content
