@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
-from . import approval
+from . import approval, geo
 from .dispatch import NOT_YET_TRIAGED, assign_work, dispatchable_work, remove_from_work
 from .forms import AssignWorkForm, RemoveFromWorkForm
 from .organisation_models import Employee
@@ -216,6 +216,7 @@ class DispatchDetailView(ManagerMixin, View):
                 "history": list(assignments.order_by("-assigned_at", "-pk")),
                 "form": form or AssignWorkForm(work_item=work_item),
                 "can_assign": work_item.status.code not in NOT_YET_TRIAGED,
+                "address": geo.street_address(work_item),
                 "report": report,
                 "awaiting_approval": awaiting_approval,
                 "review_error": review_error,
