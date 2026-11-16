@@ -99,7 +99,7 @@ def test_report_chat_shows_the_site_navbar(client: Client) -> None:
 
     assert "uk-logo" in content
     assert '<a href="/employees/">Employees</a>' in content
-    assert '<a href="/analytics/">Analytics</a>' in content
+    assert '<a href="/analytics/">Analytics</a>' not in content
 
 
 def test_staff_panel_hidden_from_public(client: Client) -> None:
