@@ -106,6 +106,9 @@ GEOCODER_USER_AGENT = "StreetFix field app"
 # Store officers' site photos on Cloudinary when it is configured.
 OFFICER_PHOTOS_ON_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
 
+# Look up map coordinates for postcodes in public reports (postcodes.io).
+POSTCODE_LOOKUP = True
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators

@@ -21,3 +21,4 @@ PASSWORD_HASHERS = [
 # Never call external address lookups or uploads from tests.
 REVERSE_GEOCODING = False
 OFFICER_PHOTOS_ON_CLOUDINARY = False
+POSTCODE_LOOKUP = False

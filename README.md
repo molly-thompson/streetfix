@@ -4,9 +4,9 @@ Streetfix is a Django CMS foundation for street reporting. It includes public
 reporting and staff-facing app areas, Django Admin management, and configurable
 site branding and theme settings.
 
-> **Project status:** The project is under active development. The intake,
-> employee, and analytics pages are currently landing-page scaffolds; the
-> public report form and dashboard workflows are not yet implemented. The data
+> **Project status:** The project is under active development. Residents can
+> report problems through the guided chat on the home page; the analytics pages
+> are still scaffolds. The data
 > models and Django Admin provide a starting point for building those
 > workflows.
 
@@ -106,7 +106,11 @@ Development settings provide local `ALLOWED_HOSTS` and
 
 | Path | Area | Current status |
 | --- | --- | --- |
-| `/` | Public intake | Landing page; the submission workflow is not implemented yet. |
+| `/` | Public intake | Guided report chat in six languages (the home page); creates a submitted work item. Signed-in staff also see the triage panel. |
+| `/report/` | Public intake | Redirects to `/` for older links. |
+| `/api/cases/` | Public API | `POST` a report from the chat; returns its `SF-00000` reference. |
+| `/api/cases/nearby/` | Public API | `GET ?category=&postcode=` returns an open job of the same type within 200 m from the last 30 days, if any. |
+| `/api/cases/<reference>/` | Public API | `GET` a report's status by reference, without personal details. |
 | `/employees/` | Employee workspace | Dashboard scaffold. |
 | `/analytics/` | Analytics | Overview scaffold. |
 | `/admin/` | Django Admin | Data and site-settings administration. |

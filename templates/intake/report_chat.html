@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}Report a problem | {{ site_name }}{% endblock title %}
+
+{% block extra_head %}
+  <link href="{% static 'css/report-chat.css' %}" rel="stylesheet">
+{% endblock extra_head %}
+
+{# Residents only need the brand here; staff links stay on the other pages. #}
+{% block navbar_links %}
+{% endblock navbar_links %}
+
+{% block content %}
+  <div class="report-chat" uk-grid>
+    <div class="uk-width-expand@m">
+      <section
+        class="uk-card uk-card-default chat rc-card"
+        aria-labelledby="chatTitle"
+      >
+        <div class="uk-card-header">
+          <h1 id="chatTitle" class="uk-card-title uk-margin-remove">Report a problem</h1>
+          <p id="sub" class="uk-text-meta uk-margin-remove-top">Report a problem on a street or public space</p>
+          <div id="progress" class="uk-margin-small-top"></div>
+        </div>
+        <div
+          id="log"
+          class="uk-card-body rc-log"
+          aria-live="polite"
+          aria-relevant="additions"
+          role="log"
+        ></div>
+        <div class="uk-card-footer">
+          <form
+            id="composer"
+            class="uk-flex uk-flex-middle rc-composer"
+            autocomplete="on"
+          >
+            <button
+              id="photoBtn"
+              class="uk-icon-button"
+              aria-label="Add a photo"
+              disabled
+              type="button"
+              uk-icon="camera"
+            ></button>
+            <input id="fileInput" accept="image/*" hidden type="file">
+            <label id="msgLabel" class="uk-hidden-visually" for="msg">Type your answer</label>
+            <input
+              id="msg"
+              class="uk-input uk-flex-1"
+              maxlength="600"
+              placeholder="Type your answer…"
+              type="text"
+            >
+            <button id="sendBtn" class="uk-button uk-button-primary" type="submit">Send</button>
+          </form>
+          <p
+            id="err"
+            class="uk-text-danger uk-text-small uk-margin-small-top uk-margin-remove-bottom"
+            role="alert"
+          ></p>
+        </div>
+      </section>
+    </div>
+    {% if show_staff_panel %}
+      <div class="uk-width-1-3@m">
+        <aside
+          id="casePanel"
+          class="uk-card uk-card-default uk-card-small uk-card-body"
+          aria-labelledby="casePanelTitle"
+        >
+          <span class="uk-label uk-margin-small-bottom">Staff view</span>
+          <h2 id="casePanelTitle" class="uk-card-title uk-margin-small-top">Case record</h2>
+          <ul id="fields" class="uk-list uk-list-divider uk-text-small">
+          </ul>
+          <h3 class="uk-h5 uk-margin-medium-top">Triage</h3>
+          <div
+            id="triage"
+            class="uk-card uk-card-default uk-card-small uk-card-body uk-text-small rc-triage"
+          ></div>
+          <div class="uk-text-small uk-text-muted uk-margin-top">
+            <p>
+              Priority starts from what the reporter chose and the issue's usual priority. Safety words can only raise it,
+              never lower it, so a short or non-English report is never pushed down the queue.
+            </p>
+            <p>Anything the assistant can't categorise goes to a person on the triage desk instead of a low-priority bucket.</p>
+            <p>Every category and priority is a suggestion until a triage officer confirms it.</p>
+          </div>
+          <ul uk-accordion>
+            <li>
+              <a class="uk-accordion-title uk-text-small" href="#">Developer view (data sent to the server)</a>
+              <div class="uk-accordion-content">
+                <pre id="json" class="rc-json"></pre>
+                <button
+                  id="copyJson"
+                  class="uk-button uk-button-default uk-button-small"
+                  type="button"
+                >Copy JSON</button>
+              </div>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    {% endif %}
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+  <script>window.STREETFIX_API = "";</script>
+  <script src="{% static 'js/report-chat-i18n.js' %}"></script>
+  <script src="{% static 'js/report-chat.js' %}"></script>
+{% endblock extra_js %}

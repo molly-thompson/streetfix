@@ -1,0 +1,228 @@
+/*
+ * Report chat (intake). Layout and components come from UIkit; this file only
+ * adds what UIkit has no component for (chat bubbles, answer chips, the
+ * typing indicator) and is styled entirely with the --theme-* variables, so
+ * it follows whatever theme is set in Admin.
+ */
+
+.rc-card {
+  display: flex;
+  flex-direction: column;
+  height: min(80vh, 760px);
+  min-height: 480px;
+}
+
+.rc-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Messages */
+.rc-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 640px;
+}
+
+.rc-row.rc-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.rc-bubble {
+  max-width: 100%;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: var(--theme-radius, 0.375rem);
+  background-color: var(--theme-background, #ffffff);
+  color: var(--theme-text, #0f172a);
+}
+
+.rc-user .rc-bubble {
+  border-color: transparent;
+  background-color: var(--theme-primary, #2563eb);
+  color: var(--theme-on-primary, #ffffff);
+}
+
+.rc-bubble > * {
+  margin: 0;
+}
+
+.rc-bubble > * + * {
+  margin-top: 8px;
+}
+
+.rc-bubble img {
+  display: block;
+  max-width: 220px;
+  border-radius: var(--theme-radius, 0.375rem);
+}
+
+/* Answer chips: UIkit buttons, relaxed so longer answers and hints wrap */
+.rc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rc-chips.done {
+  display: none;
+}
+
+.rc-chip.uk-button {
+  min-height: 44px;
+  padding: 8px 14px;
+  line-height: 1.4;
+  text-align: start;
+  text-transform: none;
+  white-space: normal;
+  font-size: 0.95rem;
+}
+
+.rc-chip.rc-quiet {
+  color: var(--theme-text-muted, #64748b);
+}
+
+/* Typing indicator */
+.rc-typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 14px;
+}
+
+.rc-typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--theme-text-muted, #64748b);
+  animation: rc-blink 1s infinite;
+}
+
+.rc-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.rc-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes rc-blink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Summaries inside messages: UIkit description list laid out as two columns */
+.rc-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+}
+
+.rc-summary > dt {
+  margin: 0;
+  color: var(--theme-text-muted, #64748b);
+  font-size: 0.875rem;
+  text-transform: none;
+}
+
+.rc-summary > dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.rc-ref {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Priority labels use the theme's semantic colours */
+.report-chat .uk-label-danger {
+  background-color: var(--theme-danger, #b91c1c);
+  color: #ffffff;
+}
+
+.report-chat .uk-label-warning {
+  background-color: var(--theme-warning, #92400e);
+  color: #ffffff;
+}
+
+.report-chat .rc-label-low {
+  background-color: var(--theme-secondary, #1e293b);
+  color: var(--theme-on-secondary, #ffffff);
+}
+
+/* Composer */
+.rc-composer {
+  gap: 8px;
+}
+
+.rc-composer .uk-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Staff panel */
+.rc-field {
+  display: grid;
+  grid-template-columns: 18px 96px minmax(0, 1fr);
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.rc-triage {
+  display: grid;
+  gap: 10px;
+}
+
+.rc-lbl {
+  color: var(--theme-text-muted, #64748b);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rc-json {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.75rem;
+  border: 1px solid var(--theme-border, #e2e8f0);
+  border-radius: var(--theme-radius, 0.375rem);
+}
+
+/* Phones: give the conversation more of the screen */
+@media (max-width: 639px) {
+  .rc-card > .uk-card-header,
+  .rc-card > .uk-card-body,
+  .rc-card > .uk-card-footer {
+    padding: 14px 16px;
+  }
+
+  .rc-card {
+    height: calc(100vh - 160px);
+  }
+}
+
+/* Right-to-left chats (Urdu, Arabic) */
+.chat[dir="rtl"] .rc-chip.uk-button {
+  text-align: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-typing i {
+    animation: none;
+  }
+}

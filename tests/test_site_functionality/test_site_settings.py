@@ -121,7 +121,9 @@ def test_admin_navbar_link_is_removed_without_changing_other_links(
     client: Client, theme_settings: ThemeSettings
 ) -> None:
     """Keep public navigation while removing only the Admin navbar link."""
-    content = client.get("/").content.decode()
+    # The home page (report chat) shows only the brand, so check a public page
+    # that uses the full navbar.
+    content = client.get("/no-such-page/").content.decode()
 
     assert '<a href="/admin/">Admin</a>' not in content
     assert '<a href="/">Intake</a>' in content

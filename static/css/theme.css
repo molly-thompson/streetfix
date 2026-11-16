@@ -219,6 +219,12 @@ a:focus,
   text-underline-offset: 0.35em;
 }
 
+/* The brand icon picks up the primary colour; the site name stays neutral. */
+.uk-navbar .uk-logo [uk-icon] {
+  color: #2563eb;
+  color: var(--theme-primary, #2563eb);
+}
+
 .uk-button-primary,
 .uk-card-primary,
 .uk-section-primary,
