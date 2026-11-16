@@ -93,12 +93,12 @@ def test_report_chat_uses_site_layout_and_theme(client: Client) -> None:
     assert content.index("css/theme") < content.index("css/report-chat")
 
 
-def test_report_chat_navbar_shows_only_the_brand(client: Client) -> None:
-    """Residents see the site brand without the staff navigation links."""
+def test_report_chat_shows_the_site_navbar(client: Client) -> None:
+    """The report chat keeps the site brand and the shared navigation links."""
     content = client.get(reverse("intake:form_intake")).content.decode()
 
     assert "uk-logo" in content
-    assert '<a href="/employees/">Employees</a>' not in content
+    assert '<a href="/employees/">Employees</a>' in content
     assert '<a href="/analytics/">Analytics</a>' not in content
 
 

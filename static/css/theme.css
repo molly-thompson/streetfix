@@ -225,6 +225,35 @@ a:focus,
   color: var(--theme-primary, #2563eb);
 }
 
+/* On phones the links sit on their own row under the brand, so they never
+   run into it. */
+@media (max-width: 639px) {
+  nav.uk-navbar {
+    flex-wrap: wrap;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  nav.uk-navbar .uk-navbar-left,
+  nav.uk-navbar .uk-navbar-right {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  nav.uk-navbar .uk-logo {
+    min-height: 56px;
+  }
+
+  nav.uk-navbar .uk-navbar-nav {
+    gap: 20px;
+  }
+
+  nav.uk-navbar .uk-navbar-nav > li > a {
+    min-height: 40px;
+    white-space: nowrap;
+  }
+}
+
 .uk-button-primary,
 .uk-card-primary,
 .uk-section-primary,
