@@ -225,31 +225,43 @@ a:focus,
   color: var(--theme-primary, #2563eb);
 }
 
-/* On phones the links sit on their own row under the brand, so they never
-   run into it. */
+/* On phones the brand and links stay on one line: smaller text and tighter
+   gaps, and the brand shortens with an ellipsis rather than overflowing. */
 @media (max-width: 639px) {
   nav.uk-navbar {
-    flex-wrap: wrap;
-    padding-left: 16px;
-    padding-right: 16px;
+    flex-wrap: nowrap;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
-  nav.uk-navbar .uk-navbar-left,
+  nav.uk-navbar .uk-navbar-left {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
   nav.uk-navbar .uk-navbar-right {
-    width: 100%;
-    margin-left: 0;
+    flex: 0 0 auto;
   }
 
   nav.uk-navbar .uk-logo {
-    min-height: 56px;
+    min-height: 52px;
+    padding: 0 8px 0 0;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    line-height: 52px;
   }
 
   nav.uk-navbar .uk-navbar-nav {
-    gap: 20px;
+    gap: 12px;
   }
 
   nav.uk-navbar .uk-navbar-nav > li > a {
-    min-height: 40px;
+    min-height: 52px;
+    padding: 0;
+    font-size: 0.75rem;
     white-space: nowrap;
   }
 }
