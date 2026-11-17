@@ -39,31 +39,6 @@ def photo(name: str = "site.jpg") -> SimpleUploadedFile:
     return SimpleUploadedFile(name, b"fake-jpeg-bytes", content_type="image/jpeg")
 
 
-@pytest.fixture
-def officer(make_employee: Callable[..., Employee]) -> Employee:
-    """Provide a Roads officer."""
-    return make_employee("priya")
-
-
-@pytest.fixture
-def job(
-    make_work_item: Callable[..., WorkItem], officer: Employee, manager: Employee
-) -> WorkItem:
-    """Provide triaged work with the officer as case officer."""
-    item = make_work_item()
-    item.transition_to(WorkItemStatus.objects.get(code="TRIAGED"))
-    assign_work(item, officer, case_officer=True, dispatcher=manager)
-    item.refresh_from_db()
-    return item
-
-
-@pytest.fixture
-def officer_client(client: Client, officer: Employee) -> Client:
-    """Provide a client signed in as the officer."""
-    client.force_login(officer.user)
-    return client
-
-
 def started(job: WorkItem, officer: Employee) -> WorkItemReport:
     """Arrive, add a before photo and start work."""
     report = field_work.arrive(job, officer)
@@ -280,6 +255,13 @@ def test_report_saves_draft_then_submits(
     assert draft.photos.filter(tag=WorkItemPhoto.Tag.AFTER).exists()
 
     response = officer_client.post(url, {**COMPLETE_ANSWERS, "finish": ""})
+
+    summary_url = reverse("employees:visit_summary", args=[job.pk])
+    assert response.headers["Location"] == summary_url
+    job.refresh_from_db()
+    assert job.status.code == "IN_PROGRESS"
+
+    response = officer_client.post(summary_url, {"summary": "Pothole filled."})
 
     job.refresh_from_db()
     assert response.headers["Location"] == reverse("employees:my_jobs")

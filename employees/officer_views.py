@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
 
-from . import field_work, geo
+from . import field_work, geo, report_summary
 from .forms import BeforePhotoForm, CommentForm
 from .organisation_models import Employee
 from .templatetags.fieldops import PRIORITY_COLOURS
@@ -345,12 +345,60 @@ class VisitReportView(OfficerMixin, View):
                 return self.render_page(report, form, error.messages)
         if "finish" not in request.POST:
             return redirect("employees:visit_report", pk=report.work_item_id)
-        problems = form.problems(report)
+        problems = form.problems(report) or list(report.submission_errors().values())
         if problems:
             return self.render_page(report, form, problems)
+        # Write the case note and let the officer check it before submitting.
+        report.ai_summary = report_summary.plain_summary(report)
+        report.save(update_fields=("ai_summary",))
+        request.session[_summary_key(report)] = True
+        return redirect("employees:visit_summary", pk=report.work_item_id)
+
+
+def _summary_key(report: WorkItemReport) -> str:
+    return f"visit_summary_{report.pk}"
+
+
+class VisitSummaryView(VisitReportView):
+    """The officer checks the drafted case note, then approves and submits."""
+
+    def render_summary(
+        self, report: WorkItemReport, text: str, errors: list[str]
+    ) -> HttpResponse:
+        """Show the drafted summary for checking."""
+        return self.page(
+            "summary.html",
+            {
+                "job": _with_visit(report.work_item, self.employee()),
+                "report": report,
+                "text": text,
+                "errors": errors,
+            },
+        )
+
+    def drafted(self, report: WorkItemReport) -> bool:
+        """Return whether the officer has been given a summary to check."""
+        return bool(
+            self.request.session.get(_summary_key(report)) and report.ai_summary
+        )
+
+    def get(self, request: HttpRequest, pk: int) -> HttpResponse:
+        """Show the drafted summary."""
+        report = self.visit(pk)
+        if not self.drafted(report):
+            return redirect("employees:visit_report", pk=pk)
+        return self.render_summary(report, report.ai_summary, [])
+
+    def post(self, request: HttpRequest, pk: int) -> HttpResponse:
+        """Approve the summary and submit the report."""
+        report = self.visit(pk)
+        if not self.drafted(report):
+            return redirect("employees:visit_report", pk=pk)
+        text = request.POST.get("summary", "")
         try:
-            field_work.submit_report(report, employee)
+            field_work.submit_report_with_summary(report, self.employee(), text)
         except ValidationError as error:
-            return self.render_page(report, form, error.messages)
+            return self.render_summary(report, text, error.messages)
+        request.session.pop(_summary_key(report), None)
         messages.success(request, "Report submitted.")
         return redirect("employees:my_jobs")
