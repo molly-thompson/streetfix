@@ -18,7 +18,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from . import approval
-from .dispatch import NOT_YET_TRIAGED, assign_work, dispatchable_work, remove_from_work
+from .dispatch import assign_work, dispatchable_work, remove_from_work
 from .forms import AssignWorkForm, RemoveFromWorkForm
 from .organisation_models import Employee
 from .overview import (
@@ -201,9 +201,7 @@ class DispatchDetailView(ManagerMixin, View):
         assignments = work_item.assignments.select_related("employee", "assigned_by")
         current = [row for row in assignments if row.is_open]
         report = approval.latest_report(work_item)
-        awaiting_approval = (
-            report is not None and work_item.status.code == approval.AWAITING_APPROVAL
-        )
+        awaiting_approval = report is not None and work_item.status.is_awaiting_review
         return render(
             self.request,
             self.template_name,
@@ -215,7 +213,7 @@ class DispatchDetailView(ManagerMixin, View):
                 "support_count": sum(not row.is_case_officer for row in current),
                 "history": list(assignments.order_by("-assigned_at", "-pk")),
                 "form": form or AssignWorkForm(work_item=work_item),
-                "can_assign": work_item.status.code not in NOT_YET_TRIAGED,
+                "can_assign": not work_item.status.is_not_yet_triaged,
                 "report": report,
                 "awaiting_approval": awaiting_approval,
                 "review_error": review_error,

@@ -18,6 +18,7 @@ from .work_models import (
     WorkItemReport,
     WorkItemStatus,
     WorkItemStatusHistory,
+    WorkStatusTransition,
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "WorkItemReport",
     "WorkItemStatus",
     "WorkItemStatusHistory",
+    "WorkStatusTransition",
 ]

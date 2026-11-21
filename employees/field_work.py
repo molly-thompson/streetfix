@@ -18,13 +18,12 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from .dispatch import PRIORITY_RANK, URGENCY_RANK, _rank, _status
+from .dispatch import PRIORITY_RANK_FIELD, URGENCY_RANK_FIELD, _rank, _status
 from .organisation_models import Employee
 from .work_models import WorkItem, WorkItemComment, WorkItemPhoto, WorkItemReport
 
 # Work an officer can still act on. Anything else is paused, finished or
 # waiting on a manager.
-ACTIVE_STATUSES = ("ASSIGNED", "IN_PROGRESS")
 NO_PHOTO_REASON_MIN_LENGTH = 15
 
 # Where each visit outcome leaves the work item.
@@ -43,12 +42,12 @@ def my_work(employee: Employee) -> QuerySet[WorkItem]:
         WorkItem.objects.filter(
             assignments__employee=employee,
             assignments__unassigned_at__isnull=True,
-            status__code__in=ACTIVE_STATUSES,
+            status__is_officer_active=True,
         )
         .select_related("issue_type", "priority", "urgency", "status")
         .annotate(
-            priority_rank=_rank("priority__code", PRIORITY_RANK),
-            urgency_rank=_rank("urgency__code", URGENCY_RANK),
+            priority_rank=_rank(PRIORITY_RANK_FIELD),
+            urgency_rank=_rank(URGENCY_RANK_FIELD),
         )
         .order_by("priority_rank", "urgency_rank", "created_at")
         .distinct()
@@ -85,7 +84,7 @@ def _check_case_officer(work_item: WorkItem, employee: Employee) -> None:
 def arrive(work_item: WorkItem, employee: Employee) -> WorkItemReport:
     """Record that the case officer has arrived on site."""
     _check_case_officer(work_item, employee)
-    if work_item.status.code != "ASSIGNED":
+    if not work_item.status.is_assigned:
         raise ValidationError("You can only arrive at assigned work.")
     report = draft_report(work_item, employee) or WorkItemReport(
         work_item=work_item, employee=employee
@@ -142,7 +141,7 @@ def start_work(
     """Start work once there is a before photo, or a reason there is none."""
     work_item = report.work_item
     _check_case_officer(work_item, employee)
-    if work_item.status.code != "ASSIGNED":
+    if not work_item.status.is_assigned:
         raise ValidationError("This work has already started.")
     reason = no_photo_reason.strip()
     if not report.has_before_photo():
