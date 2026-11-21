@@ -87,6 +87,28 @@ class IssueCategoryKeyword(models.Model):
         return f"{self.category.code}: {self.pattern}"
 
 
+class SlaPolicy(models.Model):
+    """Acknowledgement and resolution targets for a priority level."""
+
+    priority_code = models.CharField(max_length=40)
+    acknowledgement_hours = models.PositiveIntegerField(default=24)
+    resolution_working_days = models.PositiveIntegerField(default=20)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("priority_code",),
+                name="unique_sla_priority",
+            )
+        ]
+        ordering = ("priority_code",)
+
+    def __str__(self) -> str:
+        """Describe the priority SLA."""
+        return f"{self.priority_code} SLA"
+
+
 class Reporter(models.Model):
     """A person who submits a public report."""
 

@@ -7,10 +7,10 @@ from typing import Any
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 from django.utils import timezone
 
+from site_settings.configuration import get_site_configuration
+
 from .organisation_models import Department, Employee
 from .work_models import Priority, Urgency, WorkAssignment, WorkItem, WorkItemStatus
-
-WAITING_TOO_LONG = timedelta(days=7)
 
 # Stages of work the dispatch page can list on their own, by ?stage= value.
 STAGE_FILTERS = {
@@ -188,7 +188,10 @@ def needs_attention(department: Department) -> list[Stage]:
         ),
         Stage(
             "Waiting over a week for a case officer",
-            unassigned.filter(created_at__lt=timezone.now() - WAITING_TOO_LONG).count(),
+            unassigned.filter(
+                created_at__lt=timezone.now()
+                - timedelta(days=get_site_configuration().waiting_too_long_days)
+            ).count(),
             "employees:dispatch",
             "warning",
         ),

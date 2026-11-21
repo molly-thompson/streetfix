@@ -45,6 +45,42 @@ class SiteConfiguration(models.Model):
     language_code = models.CharField(max_length=10, default="en")
     time_zone = models.CharField(max_length=50, default="Europe/London")
     country_code = models.CharField(max_length=2, default="GB")
+    reference_prefix = models.CharField(max_length=20, default="SF-")
+    duplicate_radius_km = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        default="0.200",
+    )
+    duplicate_window_days = models.PositiveIntegerField(default=30)
+    waiting_too_long_days = models.PositiveIntegerField(default=7)
+    depot_name = models.CharField(
+        max_length=150,
+        default="Council House, Victoria Square",
+    )
+    depot_latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        default="52.479700",
+    )
+    depot_longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        default="-1.902600",
+    )
+    travel_speed_kmh = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default="30.00",
+    )
+    road_factor = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default="1.30",
+    )
+    on_site_minutes = models.PositiveIntegerField(default=45)
+    max_photo_bytes = models.PositiveIntegerField(default=5 * 1024 * 1024)
+    no_photo_reason_min_length = models.PositiveIntegerField(default=15)
+    postcode_cache_seconds = models.PositiveIntegerField(default=60 * 60 * 24)
 
     class Meta:
         verbose_name = "site configuration"

@@ -238,7 +238,7 @@ class BeforePhotoView(OfficerMixin, View):
                 "job": _with_visit(report.work_item, self.employee()),
                 "photos": report.photos.filter(tag=WorkItemPhoto.Tag.BEFORE),
                 "form": form or BeforePhotoForm(),
-                "min_reason": field_work.NO_PHOTO_REASON_MIN_LENGTH,
+                "min_reason": field_work.no_photo_reason_min_length(),
             },
         )
 

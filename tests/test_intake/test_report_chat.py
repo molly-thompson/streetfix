@@ -80,6 +80,7 @@ def test_report_chat_page_is_public(client: Client) -> None:
     assert response.status_code == 200
     assert "js/report-chat." in response.content.decode()
     assert "csrftoken" in response.cookies
+    assert reverse("intake:report_form") in response.content.decode()
 
 
 def test_report_chat_uses_site_layout_and_theme(client: Client) -> None:

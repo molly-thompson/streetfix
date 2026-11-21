@@ -70,6 +70,53 @@ class CancellationReason(WorkOption):
     notes_required = models.BooleanField(default=False)
 
 
+class VisitOutcome(WorkOption):
+    """A configurable outcome for a completed officer visit."""
+
+    target_status_code = models.CharField(max_length=40)
+    further_work_required = models.BooleanField(default=False)
+    unfinished = models.BooleanField(default=False)
+
+
+class PhotoTag(WorkOption):
+    """A configurable photo stage within a visit report."""
+
+
+class VisitReportOption(models.Model):
+    """A configurable further-work, hazard, or confirmation option."""
+
+    class OptionType(models.TextChoices):
+        """Supported visit-report option groups."""
+
+        FURTHER_REASON = "FURTHER_REASON", "Further-work reason"
+        HAZARD = "HAZARD", "Safety hazard"
+        CONFIRMATION = "CONFIRMATION", "Confirmation"
+
+    option_type = models.CharField(
+        max_length=20,
+        choices=OptionType.choices,
+    )
+    code = models.CharField(max_length=40)
+    label = models.CharField(max_length=200)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        """Configure visit report option ordering and uniqueness."""
+
+        ordering = ("option_type", "sort_order", "code")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("option_type", "code"),
+                name="unique_visit_report_option",
+            )
+        ]
+
+    def __str__(self) -> str:
+        """Return the option label."""
+        return self.label
+
+
 class WorkStatusTransition(models.Model):
     """An allowed lifecycle transition and its event name."""
 

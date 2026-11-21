@@ -39,6 +39,7 @@ from intake.models import (
     ReportSubmission,
     ReportSubmissionPhoto,
 )
+from site_settings.configuration import get_site_configuration
 
 logger = logging.getLogger(__name__)
 
@@ -186,12 +187,14 @@ def parse_report(body: bytes) -> ChatReport:
 
 def reference_for(work_item: WorkItem) -> str:
     """Return the reference shown to the public for a work item."""
-    return f"{REFERENCE_PREFIX}{work_item.pk:05d}"
+    prefix = get_site_configuration().reference_prefix
+    return f"{prefix}{work_item.pk:05d}"
 
 
 def work_item_for_reference(reference: str) -> WorkItem | None:
     """Return the work item a public reference points to, if any."""
-    number = reference.strip().upper().removeprefix(REFERENCE_PREFIX)
+    prefix = get_site_configuration().reference_prefix
+    number = reference.strip().upper().removeprefix(prefix)
     if not number.isdigit():
         return None
     return WorkItem.objects.filter(pk=int(number)).first()
@@ -237,7 +240,9 @@ def locate(postcode: str) -> tuple[Decimal, Decimal] | None:
         logger.warning("Postcode lookup failed for %s", postcode)
         return None
     cache.set(
-        cache_key, (str(coordinates[0]), str(coordinates[1])), POSTCODE_CACHE_SECONDS
+        cache_key,
+        (str(coordinates[0]), str(coordinates[1])),
+        get_site_configuration().postcode_cache_seconds,
     )
     return coordinates
 
@@ -245,8 +250,8 @@ def locate(postcode: str) -> tuple[Decimal, Decimal] | None:
 def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     """Return the closest open work item that may be the same problem.
 
-    Matches the same issue type within ``DUPLICATE_RADIUS_KM`` of the
-    postcode, reported in the last ``DUPLICATE_WINDOW_DAYS``. Work items
+    Matches the same issue type within the configured duplicate radius of the
+    postcode, reported in the configured duplicate window. Work items
     pinned at the depot (location unknown) are never matched, because their
     pin is not where the problem is.
     """
@@ -262,12 +267,19 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     if coordinates is None:
         return None
     lat, lng = float(coordinates[0]), float(coordinates[1])
-    depot = settings.FIELD_DEPOT
+    configuration = get_site_configuration()
+    depot = {
+        "lat": float(configuration.depot_latitude),
+        "lng": float(configuration.depot_longitude),
+        "name": configuration.depot_name,
+    }
     margin = Decimal("0.005")  # about 500 m: cheap pre-filter before exact distance
+    configuration = get_site_configuration()
     candidates = (
         WorkItem.objects.filter(
             issue_type__code=issue_type_code,
-            created_at__gte=timezone.now() - timedelta(days=DUPLICATE_WINDOW_DAYS),
+            created_at__gte=timezone.now()
+            - timedelta(days=configuration.duplicate_window_days),
             latitude__range=(coordinates[0] - margin, coordinates[0] + margin),
             longitude__range=(coordinates[1] - margin, coordinates[1] + margin),
         )
@@ -280,7 +292,9 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     best: tuple[float, WorkItem] | None = None
     for item in candidates:
         distance = distance_km(lat, lng, float(item.latitude), float(item.longitude))
-        if distance <= DUPLICATE_RADIUS_KM and (best is None or distance < best[0]):
+        if distance <= float(configuration.duplicate_radius_km) and (
+            best is None or distance < best[0]
+        ):
             best = (distance, item)
     return best[1] if best else None
 
@@ -293,7 +307,7 @@ def _decode_photo(data_url: str) -> tuple[bytes, str] | None:
         content = base64.b64decode(match.group(2), validate=True)
     except binascii.Error, ValueError:
         return None
-    if len(content) > MAX_PHOTO_BYTES:
+    if len(content) > get_site_configuration().max_photo_bytes:
         raise ValidationError("The photo is too large.")
     return content, "jpg" if match.group(1) == "jpeg" else match.group(1)
 
@@ -378,7 +392,11 @@ def submit_report(report: ChatReport) -> tuple[WorkItem, ReportSubmission]:
         )
         if coordinates is None:
             approximate = True
-            depot = settings.FIELD_DEPOT
+            configuration = get_site_configuration()
+            depot = {
+                "lat": float(configuration.depot_latitude),
+                "lng": float(configuration.depot_longitude),
+            }
             coordinates = (
                 Decimal(str(depot["lat"])).quantize(Decimal("0.000001")),
                 Decimal(str(depot["lng"])).quantize(Decimal("0.000001")),

@@ -13,8 +13,11 @@ from django.http import HttpRequest
 from .organisation_models import Department, Employee, IssueType
 from .work_models import (
     CancellationReason,
+    PhotoTag,
     Priority,
     Urgency,
+    VisitOutcome,
+    VisitReportOption,
     WorkAssignment,
     WorkItem,
     WorkItemComment,
@@ -168,6 +171,43 @@ class CancellationReasonAdmin(FixedOptionAdmin):
         "active",
         "sort_order",
     )
+
+
+@admin.register(VisitOutcome)
+class VisitOutcomeAdmin(FixedOptionAdmin):
+    """Admin configuration for visit outcome transitions."""
+
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "target_status_code",
+        "further_work_required",
+        "unfinished",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "target_status_code",
+        "further_work_required",
+        "unfinished",
+        "active",
+        "sort_order",
+    )
+
+
+@admin.register(PhotoTag)
+class PhotoTagAdmin(FixedOptionAdmin):
+    """Admin configuration for visit photo stages."""
+
+
+@admin.register(VisitReportOption)
+class VisitReportOptionAdmin(admin.ModelAdmin):
+    """Admin configuration for dynamic visit-report options."""
+
+    list_display = ("option_type", "code", "label", "active", "sort_order")
+    list_editable = ("label", "active", "sort_order")
+    list_filter = ("option_type", "active")
 
 
 @admin.register(WorkItemStatus)

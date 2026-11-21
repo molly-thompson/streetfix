@@ -15,11 +15,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
 
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
+
+from site_settings.configuration import get_site_configuration
 
 from .work_models import WorkItem
 
@@ -52,8 +53,11 @@ def _coords(item: WorkItem) -> tuple[float, float]:
 
 def depot() -> tuple[float, float]:
     """Return where officers start and end their day."""
-    location: dict[str, Any] = settings.FIELD_DEPOT
-    return float(location["lat"]), float(location["lng"])
+    configuration = get_site_configuration()
+    return (
+        float(configuration.depot_latitude),
+        float(configuration.depot_longitude),
+    )
 
 
 @dataclass
@@ -76,8 +80,9 @@ class DayPlan:
 
 
 def _travel(km: float) -> tuple[float, float]:
-    road_km = km * ROAD_FACTOR
-    return road_km, road_km / SPEED_KMH * 60
+    configuration = get_site_configuration()
+    road_km = km * float(configuration.road_factor)
+    return road_km, road_km / float(configuration.travel_speed_kmh) * 60
 
 
 def plan_day(jobs: Sequence[WorkItem], *, on_site: WorkItem | None = None) -> DayPlan:
@@ -93,7 +98,7 @@ def plan_day(jobs: Sequence[WorkItem], *, on_site: WorkItem | None = None) -> Da
     if on_site is not None:
         position = _coords(on_site)
         plan.legs[on_site.pk] = Leg(eta=now, travel_minutes=0, km=0)
-        clock = now + timedelta(minutes=ON_SITE_MINUTES)
+        clock = now + timedelta(minutes=get_site_configuration().on_site_minutes)
     for job in jobs:
         if job is on_site:
             continue
@@ -102,7 +107,7 @@ def plan_day(jobs: Sequence[WorkItem], *, on_site: WorkItem | None = None) -> Da
         plan.legs[job.pk] = Leg(eta=eta, travel_minutes=minutes, km=km)
         plan.travel_minutes += minutes
         plan.km += km
-        clock = eta + timedelta(minutes=ON_SITE_MINUTES)
+        clock = eta + timedelta(minutes=get_site_configuration().on_site_minutes)
         position = _coords(job)
     if plan.legs:
         km, minutes = _travel(distance_km(*position, *depot()))

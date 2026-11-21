@@ -15,6 +15,7 @@ from intake.models import (
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
+    SlaPolicy,
 )
 
 
@@ -75,6 +76,23 @@ class IssueCategoryAdmin(admin.ModelAdmin):
     list_filter = ("active",)
     search_fields = ("code", "label", "department_name", "issue_type_code")
     inlines = (IssueSubcategoryInline, IssueCategoryKeywordInline)
+
+
+@admin.register(SlaPolicy)
+class SlaPolicyAdmin(admin.ModelAdmin):
+    """Admin configuration for public report service targets."""
+
+    list_display = (
+        "priority_code",
+        "acknowledgement_hours",
+        "resolution_working_days",
+        "active",
+    )
+    list_editable = (
+        "acknowledgement_hours",
+        "resolution_working_days",
+        "active",
+    )
 
 
 @admin.register(Reporter)

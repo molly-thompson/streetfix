@@ -13,8 +13,11 @@ from django.utils import timezone
 from employees.organisation_models import Department, Employee, IssueType
 from employees.work_models import (
     CancellationReason,
+    PhotoTag,
     Priority,
     Urgency,
+    VisitOutcome,
+    VisitReportOption,
     WorkItem,
     WorkItemComment,
     WorkItemStatus,
@@ -133,6 +136,20 @@ def test_work_item_rejects_coordinates_outside_bounds(
         item.full_clean()
 
     assert field_name in error.value.message_dict
+
+
+def test_visit_configuration_is_seeded() -> None:
+    """Seed database outcomes, photo tags, and report options."""
+    fixed = VisitOutcome.objects.get(code="FIXED")
+    assert fixed.target_status_code == "RESOLVED"
+    assert fixed.active
+
+    assert PhotoTag.objects.filter(code="BEFORE", active=True).exists()
+    assert VisitReportOption.objects.filter(
+        option_type="HAZARD",
+        code="electrical",
+        active=True,
+    ).exists()
 
 
 def test_fixed_option_rows_are_seeded_with_editable_labels() -> None:
