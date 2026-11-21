@@ -14,7 +14,7 @@ import re
 import urllib.parse
 import urllib.request
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -34,6 +34,7 @@ from employees.organisation_models import Department, IssueType
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
 from intake.models import (
     ContactMethod,
+    IssueCategory,
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
@@ -110,6 +111,9 @@ class ChatReport:
     phone: str
     preferred_contact: str
     preferred_language: str
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    photo_urls: list[str] = field(default_factory=list)
 
 
 def _text(value: Any, limit: int) -> str:
@@ -133,7 +137,15 @@ def parse_report(body: bytes) -> ChatReport:
         raise ValidationError("The report could not be read.")
 
     category = _text(case.get("category"), 20)
-    if category not in ISSUE_TYPES:
+    if not IssueCategory.objects.filter(code=category, active=True).exists():
+        if category not in ISSUE_TYPES:
+            category = "other"
+        else:
+            category = category
+    if (
+        category not in ISSUE_TYPES
+        and not IssueCategory.objects.filter(code=category, active=True).exists()
+    ):
         category = "other"
     priority = _text(case.get("priority_suggested"), 10)
     if priority not in PRIORITY_CODES:
@@ -186,7 +198,13 @@ def work_item_for_reference(reference: str) -> WorkItem | None:
 
 
 def _issue_type(category: str) -> IssueType:
-    department_name, code, name = ISSUE_TYPES[category]
+    configured = IssueCategory.objects.filter(code=category, active=True).first()
+    if configured is not None:
+        department_name = configured.department_name
+        code = configured.issue_type_code
+        name = configured.issue_type_name
+    else:
+        department_name, code, name = ISSUE_TYPES[category]
     existing = IssueType.objects.filter(code=code).first()
     if existing is not None:
         return existing
@@ -232,7 +250,13 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     pinned at the depot (location unknown) are never matched, because their
     pin is not where the problem is.
     """
-    if category not in ISSUE_TYPES:
+    configured = IssueCategory.objects.filter(code=category, active=True).first()
+    issue_type_code = (
+        configured.issue_type_code
+        if configured is not None
+        else ISSUE_TYPES.get(category, (None, None, None))[1]
+    )
+    if issue_type_code is None:
         return None
     coordinates = locate(postcode)
     if coordinates is None:
@@ -242,7 +266,7 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     margin = Decimal("0.005")  # about 500 m: cheap pre-filter before exact distance
     candidates = (
         WorkItem.objects.filter(
-            issue_type__code=ISSUE_TYPES[category][1],
+            issue_type__code=issue_type_code,
             created_at__gte=timezone.now() - timedelta(days=DUPLICATE_WINDOW_DAYS),
             latitude__range=(coordinates[0] - margin, coordinates[0] + margin),
             longitude__range=(coordinates[1] - margin, coordinates[1] + margin),
@@ -295,7 +319,16 @@ def _store_photo(work_item_id: int, content: bytes, extension: str) -> str:
 
 def _submission_text(report: ChatReport, approximate_location: bool) -> str:
     """Write the submission so a triage officer has everything in one place."""
-    lines = [report.sub_issue or ISSUE_TYPES[report.category][2]]
+    configured = IssueCategory.objects.filter(
+        code=report.category,
+        active=True,
+    ).first()
+    issue_name = (
+        configured.issue_type_name
+        if configured is not None
+        else ISSUE_TYPES[report.category][2]
+    )
+    lines = [report.sub_issue or issue_name]
     if report.description:
         lines.append(f"Reporter's words: {report.description}")
     where = ", ".join(p for p in (report.postcode, report.location_description) if p)
@@ -336,7 +369,13 @@ def submit_report(report: ChatReport) -> tuple[WorkItem, ReportSubmission]:
 
     approximate = False
     if work_item is None:
-        coordinates = locate(report.postcode) if report.postcode else None
+        coordinates = (
+            (report.latitude, report.longitude)
+            if report.latitude is not None and report.longitude is not None
+            else locate(report.postcode)
+            if report.postcode
+            else None
+        )
         if coordinates is None:
             approximate = True
             depot = settings.FIELD_DEPOT
@@ -385,4 +424,8 @@ def submit_report(report: ChatReport) -> tuple[WorkItem, ReportSubmission]:
             ReportSubmissionPhoto.objects.create(
                 report_submission=submission, image_url=image_url
             )
+    for image_url in report.photo_urls:
+        ReportSubmissionPhoto.objects.create(
+            report_submission=submission, image_url=image_url
+        )
     return work_item, submission
