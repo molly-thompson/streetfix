@@ -3,7 +3,36 @@
 from django.contrib import admin
 from django.http import HttpRequest
 
-from site_settings.models import ThemeSettings
+from site_settings.models import SiteConfiguration, ThemeSettings
+
+
+@admin.register(SiteConfiguration)
+class SiteConfigurationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    """Expose organisation-wide configuration."""
+
+    fieldsets = [
+        (
+            "Locale",
+            {
+                "fields": (
+                    "locale_code",
+                    "language_code",
+                    "time_zone",
+                    "country_code",
+                )
+            },
+        ),
+    ]
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        """Allow creating settings only when the singleton does not exist."""
+        return not SiteConfiguration.objects.filter(pk=1).exists()
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: SiteConfiguration | None = None
+    ) -> bool:
+        """Keep the site configuration from being accidentally deleted."""
+        return False
 
 
 @admin.register(ThemeSettings)

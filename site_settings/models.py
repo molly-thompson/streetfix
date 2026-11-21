@@ -5,6 +5,7 @@ from typing import Any
 from cloudinary.models import CloudinaryField
 from coloraide import Color
 from colorfield.fields import ColorField
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -35,6 +36,29 @@ NAVBAR_BRAND_ICON_CHOICES = (
     ("chevron-down", "Chevron down"),
     ("triangle-down", "Triangle down"),
 )
+
+
+class SiteConfiguration(models.Model):
+    """Singleton organisation configuration shared across applications."""
+
+    locale_code = models.CharField(max_length=35, default="en-GB")
+    language_code = models.CharField(max_length=10, default="en")
+    time_zone = models.CharField(max_length=50, default="Europe/London")
+    country_code = models.CharField(max_length=2, default="GB")
+
+    class Meta:
+        verbose_name = "site configuration"
+        verbose_name_plural = "site configuration"
+
+    def __str__(self) -> str:
+        """Return the settings label shown in the admin."""
+        return "Site configuration"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Persist the singleton configuration row."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+        cache.delete("site_settings:site_configuration")
 
 
 class ThemeSettings(models.Model):
