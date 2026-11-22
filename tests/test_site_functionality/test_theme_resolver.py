@@ -18,6 +18,8 @@ def test_minimal_theme_resolves_complete_output() -> None:
     assert resolved.colors["success_surface"] == "#eaf3ec"
     assert "--theme-font-sans" in resolved.css_variables
     assert "--theme-font-mono" in resolved.css_variables
+    assert resolved.css_variables["--theme-font-sans"].startswith("IBM Plex Sans")
+    assert not resolved.css_variables["--theme-font-sans"].startswith("&quot")
     assert "--theme-primary-rgb" in resolved.css_variables
     assert all(value for value in resolved.css_variables.values())
     assert not resolved.contrast_errors

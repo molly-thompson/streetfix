@@ -32,6 +32,15 @@ def test_context_uses_default_branding_without_settings_row(client: Client) -> N
     assert 'rel="icon"' not in content
 
 
+def test_font_tokens_render_as_valid_css_declarations(client: Client) -> None:
+    """Do not HTML-escape font stacks into invalid CSS values."""
+    content = client.get("/").content.decode()
+
+    assert "--theme-font-sans: IBM Plex Sans, system-ui, sans-serif;" in content
+    assert "--theme-font-mono: IBM Plex Mono, ui-monospace, monospace;" in content
+    assert "--theme-font-sans: &quot;" not in content
+
+
 def test_rejects_blank_site_name() -> None:
     """Require the configured site name to contain a non-whitespace character."""
     settings = ThemeSettings(site_name="   ")
