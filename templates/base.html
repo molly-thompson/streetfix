@@ -14,9 +14,7 @@
       <link href="{{ favicon_url }}" rel="icon">
     {% endif %}
     <link href="{% static 'fonts/IBM-PLEX-LICENSE.txt' %}" rel="license">
-    <link href="{% static 'uikit/uikit.min.css' %}" rel="stylesheet">
     <link href="{% static 'css/fonts.css' %}" rel="stylesheet">
-    <link href="{% static 'css/theme.css' %}" rel="stylesheet">
     <link href="{% static 'css/layout.css' %}" rel="stylesheet">
     <link href="{% static 'css/components.css' %}" rel="stylesheet">
     {% if theme_css_vars %}
@@ -33,7 +31,7 @@
   <body class="sf-page">
     <header class="sf-site-header">
       <div class="sf-container sf-site-header__inner">
-        <a class="sf-brand uk-logo" href="{% url 'intake:form_intake' %}">
+        <a class="sf-brand" href="{% url 'intake:form_intake' %}">
           {% if brand_image_url %}
             <img
               class="sf-brand__image"
@@ -87,8 +85,6 @@
       </div>
     </footer>
 
-    <script src="{% static 'uikit/uikit.min.js' %}"></script>
-    <script src="{% static 'uikit/uikit-icons.min.js' %}"></script>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

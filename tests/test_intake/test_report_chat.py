@@ -84,21 +84,21 @@ def test_report_chat_page_is_public(client: Client) -> None:
 
 
 def test_report_chat_uses_site_layout_and_theme(client: Client) -> None:
-    """The chat extends the site template, so it gets UIkit and the theme."""
+    """The chat extends the site template and its semantic styles."""
     response = client.get(reverse("intake:form_intake"))
     content = response.content.decode()
 
     assert any(template.name == "base.html" for template in response.templates)
-    assert "uikit/uikit.min" in content
-    assert "css/theme" in content
-    assert content.index("css/theme") < content.index("css/report-chat")
+    assert "uikit/uikit.min" not in content
+    assert "css/components" in content
+    assert content.index("css/components") < content.index("css/report-chat")
 
 
 def test_report_chat_navbar_shows_only_the_brand(client: Client) -> None:
     """Residents see the site brand without the staff navigation links."""
     content = client.get(reverse("intake:form_intake")).content.decode()
 
-    assert "uk-logo" in content
+    assert "sf-brand" in content
     assert '<a href="/employees/">Employees</a>' not in content
     assert '<a href="/analytics/">Analytics</a>' not in content
 

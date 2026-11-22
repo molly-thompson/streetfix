@@ -129,7 +129,7 @@ async function checkDuplicate(){
     const j=await r.json();return j.match?{ref:j.match.reference}:null;
   }catch(e){return null}
 }
-/* Priority as a UIkit label: danger/warning colours come from the theme. */
+/* Priority labels use the configured semantic colours. */
 const PRIORITY_LABEL={Urgent:"sf-priority--danger",High:"sf-priority--warning",Medium:"",Low:"rc-label-low"};
 const priorityLabel=(pr,text)=>`<span class="sf-priority ${PRIORITY_LABEL[pr]}">${esc(text)}</span>`;
 const subText=()=>C.subKey?t(C.subKey):C.subissue;
