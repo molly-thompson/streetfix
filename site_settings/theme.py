@@ -267,8 +267,8 @@ def resolve_theme(source: ThemeSource) -> ResolvedTheme:
         "--theme-space-unit": source.space_unit,
         "--theme-density-scale": str(source.density_scale),
     }
-    for role in ("primary", "secondary", "success", "warning", "danger", "info"):
-        css_variables[f"--theme-{role}-rgb"] = _rgb(colors[role])
+    for name, value in colors.items():
+        css_variables[f"--theme-{name.replace('_', '-')}-rgb"] = _rgb(value)
 
     checks: list[tuple[str, str, str, str]] = [
         ("Body text on page background", "text_color", text, background),

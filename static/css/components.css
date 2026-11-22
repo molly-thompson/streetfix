@@ -334,6 +334,47 @@
   text-align: center;
 }
 
+.sf-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: calc(var(--theme-space-unit) * 4);
+}
+
+.sf-metric {
+  padding: calc(var(--theme-space-unit) * 6);
+  border-radius: var(--theme-radius);
+  background: var(--theme-primary);
+  color: var(--theme-on-primary);
+  text-align: center;
+}
+
+.sf-metric h2 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.sf-metric__value {
+  margin: calc(var(--theme-space-unit) * 2) 0 0;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.sf-metric--success {
+  background: var(--theme-success);
+  color: var(--theme-on-success);
+}
+
+.sf-metric--warning {
+  background: var(--theme-warning);
+  color: var(--theme-on-warning);
+}
+
+.sf-metric--secondary {
+  background: var(--theme-secondary);
+  color: var(--theme-on-secondary);
+}
+
 .sf-auth-layout,
 .sf-error-page {
   display: grid;
