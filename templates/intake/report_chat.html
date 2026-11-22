@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% load static %}
+{% load static streetfix_ui %}
 
 {% block title %}Report a problem | {{ site_name }}{% endblock title %}
 
@@ -13,74 +13,67 @@
 {% endblock navbar_links %}
 
 {% block content %}
-  <div class="report-chat" uk-grid>
-    <div class="uk-width-expand@m">
-      <section
-        class="uk-card uk-card-default chat rc-card"
-        aria-labelledby="chatTitle"
-      >
-        <div class="uk-card-header">
-          <h1 id="chatTitle" class="uk-card-title uk-margin-remove">Report a problem</h1>
-          <p id="sub" class="uk-text-meta uk-margin-remove-top">Report a problem on a street or public space</p>
-          <div id="progress" class="uk-margin-small-top"></div>
+  <div
+    class="report-chat{% if show_staff_panel %}
+             sf-grid
+             sf-grid--sidebar{% endif %}"
+  >
+    <div>
+      <section class="sf-card chat rc-card" aria-labelledby="chatTitle">
+        <div class="sf-card__header">
+          <h1 id="chatTitle">Report a problem</h1>
+          <p id="sub" class="sf-help">Report a problem on a street or public space</p>
+          <p class="sf-help">
+            Prefer the classic way?
+            <a href="{% url 'intake:report_form' %}">Use the report form</a>.
+          </p>
+          <div id="progress"></div>
         </div>
         <div
           id="log"
-          class="uk-card-body rc-log"
+          class="sf-card__body rc-log"
           aria-live="polite"
           aria-relevant="additions"
           role="log"
         ></div>
-        <div class="uk-card-footer">
-          <form
-            id="composer"
-            class="uk-flex uk-flex-middle rc-composer"
-            autocomplete="on"
-          >
+        <div class="sf-card__footer">
+          <form id="composer" class="rc-composer" autocomplete="on">
             <button
               id="photoBtn"
-              class="uk-icon-button"
+              class="sf-icon-button"
               aria-label="Add a photo"
               disabled
               type="button"
-              uk-icon="camera"
-            ></button>
+            >{% icon "camera" %}</button>
             <input id="fileInput" accept="image/*" hidden type="file">
-            <label id="msgLabel" class="uk-hidden-visually" for="msg">Type your answer</label>
+            <label id="msgLabel" class="sf-visually-hidden" for="msg">Type your answer</label>
             <input
               id="msg"
-              class="uk-input uk-flex-1"
+              class="sf-input"
               maxlength="600"
               placeholder="Type your answer…"
               type="text"
             >
-            <button id="sendBtn" class="uk-button uk-button-primary" type="submit">Send</button>
+            <button id="sendBtn" class="sf-button" type="submit">Send</button>
           </form>
-          <p
-            id="err"
-            class="uk-text-danger uk-text-small uk-margin-small-top uk-margin-remove-bottom"
-            role="alert"
-          ></p>
+          <p id="err" class="sf-error" role="alert"></p>
         </div>
       </section>
     </div>
     {% if show_staff_panel %}
-      <div class="uk-width-1-3@m">
+      <div>
         <aside
           id="casePanel"
-          class="uk-card uk-card-default uk-card-small uk-card-body"
+          class="sf-card sf-card__body"
           aria-labelledby="casePanelTitle"
         >
-          <span class="uk-label uk-margin-small-bottom">Staff view</span>
-          <h2 id="casePanelTitle" class="uk-card-title uk-margin-small-top">Case record</h2>
-          <ul id="fields" class="uk-list uk-list-divider uk-text-small">
+          <span class="sf-badge">Staff view</span>
+          <h2 id="casePanelTitle">Case record</h2>
+          <ul id="fields" class="sf-list sf-list--divided">
           </ul>
-          <h3 class="uk-h5 uk-margin-medium-top">Triage</h3>
-          <div
-            id="triage"
-            class="uk-card uk-card-default uk-card-small uk-card-body uk-text-small rc-triage"
-          ></div>
-          <div class="uk-text-small uk-text-muted uk-margin-top">
+          <h3>Triage</h3>
+          <div id="triage" class="sf-card sf-card__body rc-triage"></div>
+          <div class="sf-help">
             <p>
               Priority starts from what the reporter chose and the issue's usual priority. Safety words can only raise it,
               never lower it, so a short or non-English report is never pushed down the queue.
@@ -88,19 +81,17 @@
             <p>Anything the assistant can't categorise goes to a person on the triage desk instead of a low-priority bucket.</p>
             <p>Every category and priority is a suggestion until a triage officer confirms it.</p>
           </div>
-          <ul uk-accordion>
-            <li>
-              <a class="uk-accordion-title uk-text-small" href="#">Developer view (data sent to the server)</a>
-              <div class="uk-accordion-content">
-                <pre id="json" class="rc-json"></pre>
-                <button
-                  id="copyJson"
-                  class="uk-button uk-button-default uk-button-small"
-                  type="button"
-                >Copy JSON</button>
-              </div>
-            </li>
-          </ul>
+          <details class="rc-developer-view">
+            <summary>Developer view (data sent to the server)</summary>
+            <div>
+              <pre id="json" class="rc-json"></pre>
+              <button
+                id="copyJson"
+                class="sf-button sf-button--secondary sf-button--small"
+                type="button"
+              >Copy JSON</button>
+            </div>
+          </details>
         </aside>
       </div>
     {% endif %}

@@ -76,17 +76,17 @@ function bot(html,opts={}){
   queue=queue.then(()=>new Promise(res=>{
     const tp=addRow("bot",`<div class="rc-bubble rc-typing" aria-hidden="true"><i></i><i></i><i></i></div>`);
     setTimeout(()=>{tp.remove();
-      const r=addRow("bot",`<span class="uk-text-meta">${esc(t("who"))}</span><div class="rc-bubble">${html}</div>`);
+      const r=addRow("bot",`<span class="rc-meta">${esc(t("who"))}</span><div class="rc-bubble">${html}</div>`);
       if(opts.chips){const c=document.createElement("div");c.className="rc-chips";
-        opts.chips.forEach(ch=>{const b=document.createElement("button");b.type="button";b.className="uk-button rc-chip "+(ch.cls==="primary"?"uk-button-primary":ch.cls==="quiet"?"uk-button-default rc-quiet":"uk-button-default");
-          b.innerHTML=esc(ch.label)+(ch.hint?`<span class="uk-text-meta uk-display-block">${esc(ch.hint)}</span>`:"");
+        opts.chips.forEach(ch=>{const b=document.createElement("button");b.type="button";b.className="sf-button rc-chip "+(ch.cls==="primary"?"sf-button":ch.cls==="quiet"?"sf-button--secondary rc-quiet":"sf-button--secondary");
+          b.innerHTML=esc(ch.label)+(ch.hint?`<span class="rc-meta rc-block">${esc(ch.hint)}</span>`:"");
           b.addEventListener("click",()=>{if(!ch.keep)c.classList.add("done");ch.on()});c.appendChild(b)});
         r.appendChild(c);}
       scroll();res();},reduced?0:450);
   }));
   return queue;
 }
-const p=s=>`<p>${esc(s)}</p>`, note=s=>`<p class="uk-text-meta">${esc(s)}</p>`;
+const p=s=>`<p>${esc(s)}</p>`, note=s=>`<p class="rc-meta">${esc(s)}</p>`;
 function clearChips(){log.querySelectorAll(".rc-chips").forEach(c=>c.classList.add("done"))}
 function setInput(key,{type="off",mode="text",photo=false}={}){
   const label=t(key);$("#msgLabel").textContent=label;msg.placeholder=label;msg.setAttribute("inputmode",mode);
@@ -130,8 +130,8 @@ async function checkDuplicate(){
   }catch(e){return null}
 }
 /* Priority as a UIkit label: danger/warning colours come from the theme. */
-const PRIORITY_LABEL={Urgent:"uk-label-danger",High:"uk-label-warning",Medium:"",Low:"rc-label-low"};
-const priorityLabel=(pr,text)=>`<span class="uk-label ${PRIORITY_LABEL[pr]}">${esc(text)}</span>`;
+const PRIORITY_LABEL={Urgent:"sf-priority--danger",High:"sf-priority--warning",Medium:"",Low:"rc-label-low"};
+const priorityLabel=(pr,text)=>`<span class="sf-priority ${PRIORITY_LABEL[pr]}">${esc(text)}</span>`;
 const subText=()=>C.subKey?t(C.subKey):C.subissue;
 
 /* ---------- steps, in the order a customer meets them ---------- */
@@ -146,7 +146,7 @@ const steps={
     if(lang!=="en")bot(note(t("ai_trans")));
     else if(C.language&&C.language!=="English")bot(note(`This chat will continue in English. We'll try to send your updates in ${C.language}.`));
     bot(p(t("hi")));
-    bot(p(t("auto"))+`<div class="uk-alert uk-alert-danger uk-margin-small-top uk-margin-remove-bottom" role="note">${esc(t("emerg"))}</div>`);
+    bot(p(t("auto"))+`<div class="sf-alert sf-alert--danger" role="note">${esc(t("emerg"))}</div>`);
     go("category");
   },
   /* 1. Problem */
@@ -214,7 +214,7 @@ const steps={
     const rows=[["r_problem",t(CATS[C.category].key)+(C.otherText?` (“${C.otherText}”)`:"")],["r_what",subText()],["r_details",C.description],
       ["r_where",[C.postcode,C.landmark].filter(Boolean).join(", ")||t("not_given")],["r_photo",C.photo?t("added"):t("none")],["r_urg",urgLabel(C.urgency??null)],
       ["r_upd",C.wantsUpdates?`${t(m[1])}: ${C.email||C.phone}`:t("no_updates")],["r_name",C.name],["r_lang",C.languageLabel]];
-    bot(p(t("review_intro"))+`<dl class="uk-description-list rc-summary">${rows.filter(r=>r[1]).map(([k,v])=>`<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`+note(t(C.wantsUpdates?"consent_yes":"consent_no")),
+    bot(p(t("review_intro"))+`<dl class="rc-summary">${rows.filter(r=>r[1]).map(([k,v])=>`<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`+note(t(C.wantsUpdates?"consent_yes":"consent_no")),
       {chips:[{label:t("send_report"),cls:"primary",on:submit},{label:t("change"),cls:"quiet",on:()=>{user(t("change"));go("editMenu")}}]});
   },
   editMenu(){
@@ -235,14 +235,14 @@ const steps={
     setInput("ph_sent");
     const tr=triage(),fmt=d=>d.toLocaleString(LOCALE[lang],{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
     const how={"Email":"n3_email","Text message":"n3_text","Phone call":"n3_call"}[C.contactMethod];
-    bot(`${C.wantsReference?p(t("ref_is"))+`<p class="uk-text-large uk-text-bold rc-ref" dir="ltr">${reference}</p>`+note(t("ref_keep")):p(t("no_problem"))}
-      <dl class="uk-description-list rc-summary">
-        <dt>${esc(t("d_priority"))}</dt><dd>${priorityLabel(tr.priority,t("p_"+tr.priority))} <span class="uk-text-meta">${esc(t("ai_pri"))}</span></dd>
+    bot(`${C.wantsReference?p(t("ref_is"))+`<p class="rc-ref" dir="ltr">${reference}</p>`+note(t("ref_keep")):p(t("no_problem"))}
+      <dl class="rc-summary">
+        <dt>${esc(t("d_priority"))}</dt><dd>${priorityLabel(tr.priority,t("p_"+tr.priority))} <span class="rc-meta">${esc(t("ai_pri"))}</span></dd>
         <dt>${esc(t("d_look"))}</dt><dd><bdi>${esc(fmt(tr.ackDue))}</bdi> (${esc(t("ack_"+tr.priority))})</dd>
         <dt>${esc(t("d_fix"))}</dt><dd>${esc(t("fix_"+tr.priority))}</dd>
       </dl>
-      <p class="uk-text-bold uk-margin-small-bottom">${esc(t("next_h"))}</p>
-      <ol class="uk-list uk-list-decimal uk-margin-remove-top"><li>${esc(t("n1"))}</li><li>${esc(t("n2"))}</li><li>${esc(t(C.wantsUpdates?how:"n3_none"))}</li></ol>`+(API_BASE===null?note(t("proto")):""),
+      <p class="rc-next-title">${esc(t("next_h"))}</p>
+      <ol class="rc-next-list"><li>${esc(t("n1"))}</li><li>${esc(t("n2"))}</li><li>${esc(t(C.wantsUpdates?how:"n3_none"))}</li></ol>`+(API_BASE===null?note(t("proto")):""),
       {chips:[{label:t("another"),on:()=>{log.innerHTML="";fresh();go("welcome")}}]});
   }
 };
@@ -328,20 +328,20 @@ async function submit(){
 function render(){
   const st=STAGE_OF[current]??0;
   const shown=Math.min(st,5);
-  $("#progress").innerHTML=`<div class="uk-flex uk-flex-between uk-text-meta"><span>${esc(t("st"+shown))}</span><span dir="ltr">${shown+1} / 6</span></div>`+
-    `<progress class="uk-progress uk-margin-small-top uk-margin-remove-bottom" value="${st>5?6:shown}" max="6" aria-label="${esc(t("st"+shown))}"></progress>`;
+  $("#progress").innerHTML=`<div class="rc-progress-label rc-meta"><span>${esc(t("st"+shown))}</span><span dir="ltr">${shown+1} / 6</span></div>`+
+    `<progress class="sf-progress" value="${st>5?6:shown}" max="6" aria-label="${esc(t("st"+shown))}"></progress>`;
   if(!$("#casePanel"))return; /* staff panel is only on the page for signed-in staff */
   const rows=[["Language",C.language],["Problem",C.category?en(CATS[C.category].key):""],["What exactly",C.subissue],["Details",C.description||C.otherText],
     ["Postcode",C.postcode||(C.postcodeKnown===false?"Not known":"")],["Location",C.landmark],["Photo",C.photo?C.photoName||"Added":""],
     ["Urgency",C.urgency===undefined?"":urgLabel(C.urgency,true)],["Updates",C.wantsUpdates===null?"":C.wantsUpdates?C.contactMethod:"No"],
     ["Contact",C.email||C.phone],["Name",C.name],["Reference",C.wantsReference===null?"":C.wantsReference?"Wanted":"Not wanted"]];
-  $("#fields").innerHTML=rows.map(([k,v])=>`<li class="rc-field"><span class="${v?"uk-text-success":"uk-text-muted"}" uk-icon="icon: ${v?"check":"minus"}; ratio: 0.8" aria-hidden="true"></span><span class="uk-text-muted">${k}</span><span>${v?esc(v):"<span class='uk-text-muted'>—</span>"}</span></li>`).join("");
+  $("#fields").innerHTML=rows.map(([k,v])=>`<li class="rc-field"><span class="${v?"rc-field-complete":"rc-muted"}" aria-hidden="true">${v?"✓":"–"}</span><span class="rc-muted">${k}</span><span>${v?esc(v):"<span class='rc-muted'>—</span>"}</span></li>`).join("");
   const tr=triage(),tri=$("#triage");
-  if(!tr){tri.innerHTML=`<p class="uk-text-meta uk-margin-remove">Triage appears once the problem is known.</p>`}
+  if(!tr){tri.innerHTML=`<p class="rc-meta ">Triage appears once the problem is known.</p>`}
   else tri.innerHTML=`
-    <div><div class="rc-lbl">Category</div>${esc(en(CATS[C.category].key))}${C.subissue?` · ${esc(C.subissue)}`:""}<div class="uk-text-meta">${esc(C.categorySource||"")}</div></div>
+    <div><div class="rc-lbl">Category</div>${esc(en(CATS[C.category].key))}${C.subissue?` · ${esc(C.subissue)}`:""}<div class="rc-meta">${esc(C.categorySource||"")}</div></div>
     <div><div class="rc-lbl">Route to</div>${esc(en(tr.teamKey))}${C.duplicateOf?" (linked case)":""}</div>
-    <div><div class="rc-lbl">Suggested priority</div>${priorityLabel(tr.priority,tr.priority)}${tr.reasons.length?`<ul class="uk-list uk-list-bullet uk-list-collapse uk-margin-small-top">${tr.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>
+    <div><div class="rc-lbl">Suggested priority</div>${priorityLabel(tr.priority,tr.priority)}${tr.reasons.length?`<ul class="rc-reasons">${tr.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>
     <div><div class="rc-lbl">SLA</div>Acknowledge ${en("ack_"+tr.priority)}, resolve within ${en("fix_"+tr.priority)}</div>
     ${C.duplicateOf||C.possibleDuplicate?`<div><div class="rc-lbl">Duplicate check</div>${C.duplicateOf?"Linked to "+C.duplicateOf:"Possible duplicate of "+C.possibleDuplicate+", to check"}</div>`:""}
     ${C.postcodeKnown===false?`<div><div class="rc-lbl">Location check</div>No postcode. Officer to confirm the location from the description.</div>`:""}

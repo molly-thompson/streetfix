@@ -1,32 +1,39 @@
-/*
- * Report chat (intake). Layout and components come from UIkit; this file only
- * adds what UIkit has no component for (chat bubbles, answer chips, the
- * typing indicator) and is styled entirely with the --theme-* variables, so
- * it follows whatever theme is set in Admin.
- */
+.report-chat {
+  max-width: 76rem;
+  margin-inline: auto;
+}
 
 .rc-card {
   display: flex;
+  height: min(80vh, 47.5rem);
+  min-height: 30rem;
   flex-direction: column;
-  height: min(80vh, 760px);
-  min-height: 480px;
+}
+
+.rc-card > .sf-card__header h1 {
+  margin: 0;
+  color: var(--theme-emphasis-text);
+  font-size: clamp(1.5rem, 3vw, 1.875rem);
+}
+
+.rc-card > .sf-card__header > * + * {
+  margin-top: calc(var(--theme-space-unit) * 2);
 }
 
 .rc-log {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
   flex-direction: column;
-  gap: 12px;
+  gap: calc(var(--theme-space-unit) * 3);
 }
 
-/* Messages */
 .rc-row {
   display: flex;
+  max-width: 40rem;
   flex-direction: column;
-  gap: 6px;
-  max-width: 640px;
+  gap: calc(var(--theme-space-unit) * 1.5);
 }
 
 .rc-row.rc-user {
@@ -36,18 +43,19 @@
 
 .rc-bubble {
   max-width: 100%;
-  padding: 10px 14px;
+  padding: calc(var(--theme-space-unit) * 2.5)
+    calc(var(--theme-space-unit) * 3.5);
   overflow-wrap: anywhere;
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: var(--theme-radius, 0.375rem);
-  background-color: var(--theme-background, #ffffff);
-  color: var(--theme-text, #0f172a);
+  border: var(--theme-border-width) solid var(--theme-border);
+  border-radius: var(--theme-radius);
+  background: var(--theme-background);
+  color: var(--theme-text);
 }
 
 .rc-user .rc-bubble {
   border-color: transparent;
-  background-color: var(--theme-primary, #2563eb);
-  color: var(--theme-on-primary, #ffffff);
+  background: var(--theme-primary);
+  color: var(--theme-on-primary);
 }
 
 .rc-bubble > * {
@@ -55,61 +63,67 @@
 }
 
 .rc-bubble > * + * {
-  margin-top: 8px;
+  margin-top: calc(var(--theme-space-unit) * 2);
 }
 
 .rc-bubble img {
   display: block;
-  max-width: 220px;
-  border-radius: var(--theme-radius, 0.375rem);
+  max-width: 13.75rem;
+  border-radius: var(--theme-radius);
 }
 
-/* Answer chips: UIkit buttons, relaxed so longer answers and hints wrap */
 .rc-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: calc(var(--theme-space-unit) * 2);
 }
 
 .rc-chips.done {
   display: none;
 }
 
-.rc-chip.uk-button {
-  min-height: 44px;
-  padding: 8px 14px;
+.rc-chip.sf-button {
+  min-height: 2.75rem;
+  padding: calc(var(--theme-space-unit) * 2)
+    calc(var(--theme-space-unit) * 3.5);
   line-height: 1.4;
   text-align: start;
-  text-transform: none;
   white-space: normal;
-  font-size: 0.95rem;
 }
 
 .rc-chip.rc-quiet {
-  color: var(--theme-text-muted, #64748b);
+  color: var(--theme-muted-text);
 }
 
-/* Typing indicator */
+.rc-meta,
+.rc-muted {
+  color: var(--theme-muted-text);
+}
+
+.rc-block {
+  display: block;
+}
+
 .rc-typing {
   display: inline-flex;
-  gap: 4px;
-  padding: 14px;
+  gap: var(--theme-space-unit);
+  padding: calc(var(--theme-space-unit) * 3.5);
 }
 
 .rc-typing i {
-  width: 7px;
-  height: 7px;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
-  background-color: var(--theme-text-muted, #64748b);
+  background: var(--theme-muted-text);
   animation: rc-blink 1s infinite;
 }
 
 .rc-typing i:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: var(--theme-duration-fast);
 }
 
 .rc-typing i:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: var(--theme-duration-base);
 }
 
 @keyframes rc-blink {
@@ -124,18 +138,16 @@
   }
 }
 
-/* Summaries inside messages: UIkit description list laid out as two columns */
 .rc-summary {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 4px 14px;
+  gap: var(--theme-space-unit) calc(var(--theme-space-unit) * 3.5);
 }
 
 .rc-summary > dt {
   margin: 0;
-  color: var(--theme-text-muted, #64748b);
+  color: var(--theme-muted-text);
   font-size: 0.875rem;
-  text-transform: none;
 }
 
 .rc-summary > dd {
@@ -144,80 +156,123 @@
 }
 
 .rc-ref {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--theme-font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
   letter-spacing: 0.04em;
 }
 
-/* Priority labels use the theme's semantic colours */
-.report-chat .uk-label-danger {
-  background-color: var(--theme-danger, #b91c1c);
-  color: #ffffff;
+.sf-priority--danger {
+  background: var(--theme-danger-surface);
+  color: var(--theme-danger-text);
 }
 
-.report-chat .uk-label-warning {
-  background-color: var(--theme-warning, #92400e);
-  color: #ffffff;
+.sf-priority--warning {
+  background: var(--theme-warning-surface);
+  color: var(--theme-warning-text);
 }
 
-.report-chat .rc-label-low {
-  background-color: var(--theme-secondary, #1e293b);
-  color: var(--theme-on-secondary, #ffffff);
+.rc-label-low {
+  background: var(--theme-secondary-surface);
+  color: var(--theme-secondary-text);
 }
 
-/* Composer */
 .rc-composer {
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--theme-space-unit) * 2);
 }
 
-.rc-composer .uk-icon-button:disabled {
-  opacity: 0.4;
+.rc-composer .sf-icon-button:disabled {
+  opacity: var(--theme-disabled-opacity);
   cursor: not-allowed;
 }
 
-/* Staff panel */
+.rc-progress-label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rc-progress-label + .sf-progress {
+  margin-top: calc(var(--theme-space-unit) * 2);
+}
+
 .rc-field {
   display: grid;
-  grid-template-columns: 18px 96px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 1.125rem 6rem minmax(0, 1fr);
+  padding-block: calc(var(--theme-space-unit) * 2);
+  gap: calc(var(--theme-space-unit) * 2);
   overflow-wrap: anywhere;
+}
+
+.rc-field-complete {
+  color: var(--theme-success);
 }
 
 .rc-triage {
   display: grid;
-  gap: 10px;
+  gap: calc(var(--theme-space-unit) * 2.5);
+  box-shadow: none;
 }
 
 .rc-lbl {
-  color: var(--theme-text-muted, #64748b);
+  color: var(--theme-muted-text);
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+}
+
+.rc-reasons,
+.rc-next-list {
+  padding-inline-start: 1.25rem;
+}
+
+.rc-reasons {
+  margin: calc(var(--theme-space-unit) * 2) 0 0;
+}
+
+.rc-next-title {
+  margin-bottom: calc(var(--theme-space-unit) * 2);
+  font-weight: 600;
 }
 
 .rc-json {
-  max-height: 320px;
+  max-height: 20rem;
   overflow: auto;
+  border: var(--theme-border-width) solid var(--theme-border);
+  border-radius: var(--theme-radius);
+  font-family: var(--theme-font-mono);
   font-size: 0.75rem;
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: var(--theme-radius, 0.375rem);
 }
 
-/* Phones: give the conversation more of the screen */
-@media (max-width: 639px) {
-  .rc-card > .uk-card-header,
-  .rc-card > .uk-card-body,
-  .rc-card > .uk-card-footer {
-    padding: 14px 16px;
-  }
+.rc-developer-view {
+  margin-top: calc(var(--theme-space-unit) * 6);
+}
 
+.rc-developer-view > summary {
+  color: var(--theme-muted-text);
+  font-size: 0.875rem;
+}
+
+.rc-developer-view > div {
+  display: grid;
+  margin-top: calc(var(--theme-space-unit) * 3);
+  gap: calc(var(--theme-space-unit) * 3);
+}
+
+@media (max-width: 39.99rem) {
   .rc-card {
-    height: calc(100vh - 160px);
+    height: calc(100vh - 10rem);
+  }
+
+  .rc-card > .sf-card__header,
+  .rc-card > .sf-card__body,
+  .rc-card > .sf-card__footer {
+    padding: calc(var(--theme-space-unit) * 3.5)
+      calc(var(--theme-space-unit) * 4);
   }
 }
 
-/* Right-to-left chats (Urdu, Arabic) */
-.chat[dir="rtl"] .rc-chip.uk-button {
+.chat[dir="rtl"] .rc-chip.sf-button {
   text-align: right;
 }
 
