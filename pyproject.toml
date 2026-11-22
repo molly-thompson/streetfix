@@ -94,6 +94,7 @@ django_settings_module = "config.settings.development"
 allow_empty_input = true
 profile = "django"
 files = ["templates/*"]
+extend_exclude = ["staticfiles"]
 custom_blocks = "body,content,title,extra_head,extra_body"
 name_endblocks = true
 preserve_blank_lines = true

@@ -109,9 +109,10 @@ def test_admin_navbar_link_is_removed_without_changing_other_links(
     content = client.get("/no-such-page/").content.decode()
 
     assert '<a href="/admin/">Admin</a>' not in content
-    assert '<a href="/">Intake</a>' in content
-    assert '<a href="/employees/">Employees</a>' in content
-    assert '<a href="/analytics/">Analytics</a>' in content
+    assert 'class="sf-nav-link"' in content
+    assert 'href="/">Intake</a>' in content
+    assert 'href="/employees/">Employees</a>' in content
+    assert 'href="/analytics/">Analytics</a>' in content
 
 
 def test_saves_and_exposes_core_and_optional_theme_values(

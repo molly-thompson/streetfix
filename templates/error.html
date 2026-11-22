@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% load streetfix_ui %}
+
 {% comment %}
     TEMPLATE: error.html
     PURPOSE: Generic error template for HTTP status codes.
@@ -20,35 +22,15 @@
 {% block content %}
   {% firstof link_endpoint "intake:form_intake" as target_endpoint %}
 
-  <div
-    class="uk-section uk-section-large uk-flex uk-flex-middle uk-flex-center uk-text-center uk-flex-auto"
-  >
-    <div class="uk-container uk-width-1-1">
-      <div class="uk-grid-margin uk-flex uk-flex-center" uk-grid>
-        <div class="uk-width-2-3@m uk-width-1-2@l">
-
-          <h1 class="uk-heading-2xlarge uk-margin-small-bottom">
-            <span class="uk-hidden">Error </span>{{ status_code }}
-          </h1>
-
-          <p class="uk-text-lead uk-margin-small-bottom">{{ title|default:"Oops, something went wrong." }}</p>
-
-          <p class="uk-text-muted uk-margin-medium-bottom">
-            {{ message|default:"An unexpected error occurred while processing your request." }}
-          </p>
-
-          <a
-            class="uk-button uk-button-primary uk-button-large uk-border-pill uk-inline-flex uk-flex-middle uk-flex-center"
-            href="{% url target_endpoint %}"
-          >
-            <span
-              class="uk-margin-small-right"
-              uk-icon="icon: arrow-left; ratio: 0.9"
-            ></span>{{ link_btn_text|default:"Back to homepage" }}
-          </a>
-
-        </div>
-      </div>
+  <div class="sf-error-page">
+    <div class="sf-page-header">
+      <p class="sf-error-page__code"><span class="sf-visually-hidden">Error </span>{{ status_code }}</p>
+      <h1>{{ title|default:"Oops, something went wrong." }}</h1>
+      <p>{{ message|default:"An unexpected error occurred while processing your request." }}</p>
     </div>
+    <a class="sf-button" href="{% url target_endpoint %}">
+      {% icon "arrow-left" %}
+      {{ link_btn_text|default:"Back to homepage" }}
+    </a>
   </div>
 {% endblock content %}

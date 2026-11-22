@@ -2,11 +2,11 @@
 
 {% if attrs.form.errors %}
   <div
-    class="uk-alert-danger uk-margin"
+    class="sf-alert sf-alert--danger"
     aria-labelledby="allauth-error-summary-title"
   >
-    <h2 id="allauth-error-summary-title" class="uk-h4">{% trans "Please correct the errors below." %}</h2>
-    <ul class="uk-list uk-margin-remove-bottom">
+    <h2 id="allauth-error-summary-title">{% trans "Please correct the errors below." %}</h2>
+    <ul class="sf-list">
       {% for error in attrs.form.non_field_errors %}
         <li>{{ error }}</li>
       {% endfor %}

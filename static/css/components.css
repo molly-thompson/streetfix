@@ -161,6 +161,25 @@
   gap: calc(var(--theme-space-unit) * 1.5);
 }
 
+.sf-fieldset {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: calc(var(--theme-space-unit) * 2);
+  border: 0;
+}
+
+.sf-field__control {
+  display: grid;
+  gap: calc(var(--theme-space-unit) * 2);
+}
+
+.sf-choice {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--theme-space-unit) * 2);
+}
+
 .sf-label {
   color: var(--theme-emphasis-text);
   font-weight: 500;
@@ -313,6 +332,56 @@
   background: var(--theme-surface);
   color: var(--theme-muted-text);
   text-align: center;
+}
+
+.sf-auth-layout,
+.sf-error-page {
+  display: grid;
+  min-height: min(70vh, 42rem);
+  place-items: center;
+}
+
+.sf-auth-card {
+  width: min(100%, 28rem);
+}
+
+.sf-auth-card__footer {
+  color: var(--theme-muted-text);
+  text-align: center;
+}
+
+.sf-auth-options {
+  justify-content: space-between;
+}
+
+.sf-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--theme-space-unit) * 2);
+}
+
+.sf-button--full {
+  width: 100%;
+}
+
+.sf-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(var(--theme-space-unit) * 3);
+}
+
+.sf-error-page {
+  align-content: center;
+  gap: calc(var(--theme-space-unit) * 6);
+  text-align: center;
+}
+
+.sf-error-page__code {
+  margin: 0;
+  color: var(--theme-primary);
+  font-family: var(--theme-font-mono);
+  font-size: clamp(3rem, 12vw, 6rem);
+  line-height: 1;
 }
 
 @media (max-width: 47.99rem) {

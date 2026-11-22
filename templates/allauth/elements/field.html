@@ -1,9 +1,9 @@
-{% load allauth %}
+﻿{% load allauth %}
 
-<div class="uk-margin">
+<div class="sf-field">
   {% if attrs.type == "radio" or attrs.type == "checkbox" and attrs.choices %}
     <fieldset
-      class="uk-fieldset"
+      class="sf-fieldset"
       {% if attrs.errors %}aria-invalid="true"{% endif %}
       {% if attrs.required %}aria-required="true"{% endif %}
       {% if slots.help_text or attrs.errors %}aria-describedby="{% if slots.help_text %}{{ attrs.id }}_help{% endif %}
@@ -13,13 +13,13 @@
       "
       {% endif %}
     >
-      <legend class="uk-form-label">{% slot label %}{% endslot %}</legend>
-    <div class="uk-form-controls">
+      <legend class="sf-label">{% slot label %}{% endslot %}</legend>
+    <div class="sf-field__control">
       {% for choice in attrs.choices %}
-        <label class="uk-display-block" for="{{ attrs.id }}_{{ forloop.counter0 }}">
+        <label class="sf-choice" for="{{ attrs.id }}_{{ forloop.counter0 }}">
           <input
-            class="{% if attrs.type == 'radio' %}uk-radio{% else %}uk-checkbox{% endif %}{% if attrs.errors %}
-                   uk-form-danger{% endif %}"
+            class="{% if attrs.type == 'radio' %}sf-radio{% else %}sf-checkbox{% endif %}{% if attrs.errors %}
+                   {% endif %}"
             type="{{ attrs.type }}"
             name="{{ attrs.name }}"
             id="{{ attrs.id }}_{{ forloop.counter0 }}"
@@ -43,11 +43,11 @@
     </div>
   </fieldset>
 {% elif attrs.type == "checkbox" %}
-  <div class="uk-form-controls">
-    <label class="uk-form-label" for="{{ attrs.id }}">
+  <div class="sf-field__control">
+    <label class="sf-label" for="{{ attrs.id }}">
       <input
-        class="uk-checkbox{% if attrs.errors %}
-                 uk-form-danger{% endif %}"
+        class="sf-checkbox{% if attrs.errors %}
+               {% endif %}"
         type="checkbox"
         {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
         {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
@@ -67,12 +67,12 @@
   </label>
 </div>
 {% else %}
-<label class="uk-form-label" for="{{ attrs.id }}">{% slot label %}{% endslot %}</label>
-<div class="uk-form-controls">
+<label class="sf-label" for="{{ attrs.id }}">{% slot label %}{% endslot %}</label>
+<div class="sf-field__control">
   {% if attrs.type == "textarea" %}
     <textarea
-      class="uk-textarea{% if attrs.errors %}
-               uk-form-danger{% endif %}"
+      class="sf-textarea{% if attrs.errors %}
+             {% endif %}"
       {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
       {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
       {% if attrs.required %}required{% endif %}
@@ -90,8 +90,8 @@
     >{% slot value %}{% endslot %}</textarea>
 {% elif attrs.type == "select" %}
   <select
-    class="uk-select{% if attrs.errors %}
-             uk-form-danger{% endif %}"
+    class="sf-select{% if attrs.errors %}
+           {% endif %}"
     {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
     {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
     {% if attrs.required %}required{% endif %}
@@ -117,8 +117,8 @@
   </select>
 {% else %}
   <input
-    class="uk-input{% if attrs.errors %}
-             uk-form-danger{% endif %}"
+    class="sf-input{% if attrs.errors %}
+           {% endif %}"
     type="{{ attrs.type }}"
     {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
     {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
@@ -141,13 +141,10 @@
 </div>
 {% endif %}
 {% if slots.help_text %}
-  <div id="{{ attrs.id }}_help" class="uk-text-meta uk-margin-small-top">{% slot help_text %}{% endslot %}</div>
+  <div id="{{ attrs.id }}_help" class="sf-help">{% slot help_text %}{% endslot %}</div>
 {% endif %}
 {% if attrs.errors %}
-  <ul
-    id="{{ attrs.id }}_errors"
-    class="uk-list uk-text-danger uk-text-small uk-margin-small-top"
-  >
+  <ul id="{{ attrs.id }}_errors" class="sf-list sf-error">
     {% for error in attrs.errors %}
       <li>{{ error }}</li>
     {% endfor %}

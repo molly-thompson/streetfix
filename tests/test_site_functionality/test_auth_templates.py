@@ -1,6 +1,5 @@
-"""Tests for UIkit styling on django-allauth forms."""
+"""Tests for semantic styling on django-allauth forms."""
 
-import re
 from collections.abc import Iterator
 from html.parser import HTMLParser
 
@@ -42,30 +41,19 @@ class FormInputParser(HTMLParser):
 
 
 def assert_entrance_content_centered(content: str) -> None:
-    """Keep entrance headings, intro copy, and submit actions centered."""
-    assert re.search(
-        r'<div class="uk-text-center">\s*<h1>[\s\S]*?</h1>'
-        r"[\s\S]*?<p>[\s\S]*?</p>",
-        content,
-    )
-    form = re.search(r"<form\b[\s\S]*?</form>", content)
-    assert form
-    assert 'class="uk-form-stacked uk-text-left"' in form.group()
-    assert re.search(
-        r'<div class="uk-text-center uk-margin-top">\s*'
-        r'<button class="uk-button uk-button-primary"',
-        form.group(),
-    )
+    """Keep account pages inside the shared semantic entrance shell."""
+    assert "sf-auth-layout" in content
+    assert "sf-auth-card" in content
 
 
-def test_login_form_uses_uikit_elements(client: Client) -> None:
-    """Render login fields with UIkit classes and preserve hidden form fields."""
+def test_login_form_uses_semantic_elements(client: Client) -> None:
+    """Render login fields with semantic classes and preserve hidden fields."""
     response = client.get(reverse("account_login"), {"next": "/employees/"})
     content = response.content.decode()
 
     assert response.status_code == 200
-    assert 'class="uk-form-stacked uk-text-left"' in content
-    assert 'class="uk-input"' in content
+    assert 'class="sf-form sf-stack"' in content
+    assert 'class="sf-input"' in content
     assert 'for="id_login"' in content
     assert 'id="id_login"' in content
     assert 'name="csrfmiddlewaretoken"' in content
@@ -83,15 +71,10 @@ def test_signup_closed_page_shows_message_and_entrance_layout(client: Client) ->
     assert "Sign Up Closed" in content
     assert "We are sorry, but the sign up is currently closed." in content
     # No form should be present
-    assert 'class="uk-form-stacked uk-text-left"' not in content
+    assert 'class="sf-form sf-stack"' not in content
     assert 'name="csrfmiddlewaretoken"' not in content
-    # Check entrance layout: centered heading and paragraph in uk-text-center div
-    assert re.search(
-        r'<div class="uk-text-center">\s*<h1>[\s\S]*?</h1>'
-        r"[\s\S]*?<p>[\s\S]*?</p>",
-        content,
-    )
-    assert "uk-card-default" in content
+    assert "sf-auth-card" in content
+    assert "<h1>" in content and "Sign Up Closed" in content
 
 
 def test_password_reset_page_inherits_entrance_alignment(client: Client) -> None:
@@ -100,7 +83,7 @@ def test_password_reset_page_inherits_entrance_alignment(client: Client) -> None
     content = response.content.decode()
 
     assert response.status_code == 200
-    assert "uk-card-default" in content
+    assert "sf-auth-card" in content
     assert_entrance_content_centered(content)
 
 
@@ -110,15 +93,11 @@ def test_account_inactive_page_inherits_entrance_layout(client: Client) -> None:
     content = response.content.decode()
 
     assert response.status_code == 200
-    assert "uk-card-default" in content
-    assert re.search(
-        r'<div class="uk-text-center">\s*<h1>[\s\S]*?</h1>[\s\S]*?<p>',
-        content,
-    )
+    assert "sf-auth-card" in content
 
 
-def test_fields_render_uikit_markup_for_choice_and_textarea_widgets() -> None:
-    """Render choice controls and textarea values with the matching UIkit class."""
+def test_fields_render_semantic_markup_for_choice_and_textarea_widgets() -> None:
+    """Render choice controls and textarea values with semantic classes."""
 
     class WidgetForm(forms.Form):
         choice = forms.ChoiceField(choices=[("a", "Alpha"), ("b", "Beta")])
@@ -147,10 +126,10 @@ def test_fields_render_uikit_markup_for_choice_and_textarea_widgets() -> None:
     parser = FormInputParser()
     parser.feed(content)
 
-    assert 'class="uk-select"' in content
-    assert 'class="uk-textarea"' in content
-    assert 'class="uk-radio"' in content
-    assert 'class="uk-checkbox"' in content
+    assert 'class="sf-select"' in content
+    assert 'class="sf-textarea"' in content
+    assert 'class="sf-radio"' in content
+    assert 'class="sf-checkbox"' in content
     assert "selected" in content
     assert "Preserved note" in content
     assert "Radios" in content
