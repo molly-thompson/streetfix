@@ -4,13 +4,12 @@ import pytest
 from cloudinary import CloudinaryResource
 from cloudinary import config as cloudinary_config
 from colorfield.widgets import ColorWidget
-from django import forms
 from django.contrib.admin.sites import AdminSite
 from django.core.exceptions import ValidationError
 from django.test import Client, RequestFactory
 
 from site_settings.admin import ThemeSettingsAdmin
-from site_settings.models import NAVBAR_BRAND_ICON_CHOICES, ThemeSettings
+from site_settings.models import ThemeSettings
 
 pytestmark = pytest.mark.django_db
 
@@ -39,33 +38,18 @@ def test_rejects_blank_site_name() -> None:
         settings.save()
 
 
-def test_site_name_and_brand_icon_render_in_shared_template(
+def test_site_name_renders_in_shared_template(
     client: Client, theme_settings: ThemeSettings
 ) -> None:
-    """Render the configured name and decorative icon in the shared branding."""
+    """Render the configured name in the shared branding."""
     theme_settings.site_name = "StreetFix"
-    theme_settings.navbar_brand_icon = "home"
     theme_settings.save()
 
     response = client.get("/")
     content = response.content.decode()
 
-    assert 'aria-hidden="true"' in content
-    assert 'uk-icon="icon: home"' in content
     assert "StreetFix" in content
     assert "© " in content and "StreetFix. All rights reserved." in content
-
-
-def test_blank_brand_icon_does_not_render_icon(
-    client: Client, theme_settings: ThemeSettings
-) -> None:
-    """Do not render an icon when the no-icon choice is selected."""
-    theme_settings.navbar_brand_icon = ""
-    theme_settings.save()
-
-    response = client.get("/")
-
-    assert 'uk-icon="icon:' not in response.content.decode()
 
 
 def test_favicon_renders_only_when_configured(
@@ -101,17 +85,15 @@ def test_favicon_renders_only_when_configured(
     assert 'rel="icon"' not in unset_content
 
 
-def test_admin_brand_icon_is_a_dropdown() -> None:
-    """Expose the finite UIkit icon choices through a select control."""
+def test_admin_exposes_brand_image_without_navbar_icon() -> None:
+    """Expose branding uploads without a fixed navbar icon choice."""
     request = RequestFactory().get("/admin/")
     form_class = ThemeSettingsAdmin(ThemeSettings, AdminSite()).get_form(request)
     form = form_class()
 
-    icon_field = form.fields["navbar_brand_icon"]
-    assert isinstance(icon_field, forms.ChoiceField)
-    assert isinstance(icon_field.widget, forms.Select)
-    assert icon_field.choices == NAVBAR_BRAND_ICON_CHOICES
-    assert ("site_name", "favicon", "navbar_brand_icon") in [
+    assert "brand_image" in form.fields
+    assert "navbar_brand_icon" not in form.fields
+    assert ("site_name", "brand_image", "favicon") in [
         tuple(field for field in fieldset["fields"])
         for _, fieldset in ThemeSettingsAdmin.fieldsets
     ]
@@ -152,7 +134,7 @@ def test_saves_and_exposes_core_and_optional_theme_values(
     assert "--theme-radius: 8px;" in content
     assert "--theme-surface: #eeeeee;" in content
     assert "--theme-link: #654321;" in content
-    assert "--theme-border:" not in content
+    assert "--theme-border:" in content
 
 
 def test_rejects_invalid_color_values() -> None:
@@ -176,8 +158,8 @@ def test_rejects_low_contrast_text_before_writing() -> None:
 
 
 @pytest.mark.django_db
-def test_rejects_low_contrast_primary_action_text() -> None:
-    """Validate default white text against the configured primary color."""
+def test_rejects_low_contrast_derived_primary_links() -> None:
+    """Reject a primary color that cannot serve as a link."""
     settings = ThemeSettings(primary_color="#ffffff")
 
     with pytest.raises(ValidationError) as error:
@@ -192,6 +174,7 @@ def test_accepts_text_just_above_the_contrast_threshold() -> None:
     """Accept near-threshold text when explicit tokens keep all pairs legible."""
     settings = ThemeSettings(
         text_color="#767676",
+        background_color="#ffffff",
         surface_color="#ffffff",
         emphasis_text_color="#767676",
         muted_text_color="#767676",

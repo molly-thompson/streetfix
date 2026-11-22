@@ -3,11 +3,10 @@
 from typing import Any
 
 from cloudinary.models import CloudinaryField
-from coloraide import Color
 from colorfield.fields import ColorField
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 
 SITE_NAME_VALIDATOR = RegexValidator(
@@ -35,6 +34,21 @@ NAVBAR_BRAND_ICON_CHOICES = (
     ("world", "World"),
     ("chevron-down", "Chevron down"),
     ("triangle-down", "Triangle down"),
+)
+
+CSS_LENGTH_VALIDATOR = RegexValidator(
+    regex=r"^(?:0|(?:\d+(?:\.\d+)?)(?:px|rem|em|%))$",
+    message="Enter a CSS length using px, rem, em, or %, or 0.",
+)
+
+CSS_TIME_VALIDATOR = RegexValidator(
+    regex=r"^\d+(?:\.\d+)?(?:ms|s)$",
+    message="Enter a duration using ms or s.",
+)
+
+CSS_SAFE_VALUE_VALIDATOR = RegexValidator(
+    regex=r"^(?!.*[;{}<>])[\s\S]+$",
+    message="Enter a CSS value without declaration separators or markup.",
 )
 
 
@@ -111,26 +125,26 @@ class ThemeSettings(models.Model):
         blank=True,
         null=True,
     )
-    navbar_brand_icon = models.CharField(
-        max_length=20,
-        choices=NAVBAR_BRAND_ICON_CHOICES,
+    brand_image = CloudinaryField(
+        "brand image",
+        resource_type="image",
         blank=True,
-        default="",
+        null=True,
     )
     primary_color = ColorField(
         "primary color",
         max_length=7,
-        default="#2563eb",
+        default="#0f6b63",
     )
     background_color = ColorField(
         "page background",
         max_length=7,
-        default="#ffffff",
+        default="#f5f6f8",
     )
     text_color = ColorField(
         "text color",
         max_length=7,
-        default="#0f172a",
+        default="#374151",
     )
     radius = models.CharField(
         max_length=12,
@@ -234,6 +248,193 @@ class ThemeSettings(models.Model):
         blank=True,
         default="",
     )
+    surface_elevated_color = ColorField(
+        "elevated surface",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    tertiary_text_color = ColorField(
+        "tertiary text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    disabled_text_color = ColorField(
+        "disabled text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    primary_text_color = ColorField(
+        "primary text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    primary_surface_color = ColorField(
+        "primary surface color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    info_color = ColorField(
+        "info color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    secondary_text_color = ColorField(
+        "secondary text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    secondary_surface_color = ColorField(
+        "secondary surface color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    success_text_color = ColorField(
+        "success text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    warning_text_color = ColorField(
+        "warning text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    danger_text_color = ColorField(
+        "danger text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    info_text_color = ColorField(
+        "info text color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    info_surface_color = ColorField(
+        "info surface color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    on_secondary_color = ColorField(
+        "text on secondary color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    on_success_color = ColorField(
+        "text on success color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    on_warning_color = ColorField(
+        "text on warning color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    on_danger_color = ColorField(
+        "text on danger color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    on_info_color = ColorField(
+        "text on info color",
+        max_length=7,
+        blank=True,
+        default="",
+    )
+    border_width = models.CharField(
+        max_length=12,
+        default="1px",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    outline_width = models.CharField(
+        max_length=12,
+        default="3px",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    outline_offset = models.CharField(
+        max_length=12,
+        default="2px",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    shadow_base = models.CharField(
+        max_length=120,
+        default="0 1px 2px rgba(15, 23, 42, 0.12)",
+        validators=[CSS_SAFE_VALUE_VALIDATOR],
+    )
+    focus_ring_alpha = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default="0.35",
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
+    )
+    disabled_opacity = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default="0.60",
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
+    )
+    duration_fast = models.CharField(
+        max_length=12,
+        default="120ms",
+        validators=[CSS_TIME_VALIDATOR],
+    )
+    duration_base = models.CharField(
+        max_length=12,
+        default="180ms",
+        validators=[CSS_TIME_VALIDATOR],
+    )
+    duration_slow = models.CharField(
+        max_length=12,
+        default="300ms",
+        validators=[CSS_TIME_VALIDATOR],
+    )
+    ease_standard = models.CharField(
+        max_length=80,
+        default="cubic-bezier(0.2, 0, 0, 1)",
+        validators=[CSS_SAFE_VALUE_VALIDATOR],
+    )
+    ease_out = models.CharField(
+        max_length=80,
+        default="cubic-bezier(0, 0, 0.2, 1)",
+        validators=[CSS_SAFE_VALUE_VALIDATOR],
+    )
+    font_size_base = models.CharField(
+        max_length=12,
+        default="1rem",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    font_size_staff = models.CharField(
+        max_length=12,
+        default="0.875rem",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    font_weight_base = models.PositiveSmallIntegerField(default=400)
+    space_unit = models.CharField(
+        max_length=12,
+        default="0.25rem",
+        validators=[CSS_LENGTH_VALIDATOR],
+    )
+    density_scale = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default="1.00",
+    )
+    revision = models.PositiveIntegerField(default=1, editable=False)
 
     class Meta:
         verbose_name = "theme settings"
@@ -246,197 +447,24 @@ class ThemeSettings(models.Model):
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Validate values and persist the singleton settings row."""
         self.pk = 1
+        existed = ThemeSettings.objects.filter(pk=1).exists()
         self.clean_fields()
         self.clean()
+        if existed:
+            self.revision = (
+                ThemeSettings.objects.only("revision").get(pk=1).revision + 1
+            )
         super().save(*args, **kwargs)
+        if not existed:
+            cache.delete("site_settings:resolved_theme:0")
+        cache.delete(f"site_settings:resolved_theme:{self.revision - 1}")
+        cache.delete(f"site_settings:resolved_theme:{self.revision}")
 
     def clean(self) -> None:
         """Validate WCAG AA contrast for the foreground/background pairs."""
         super().clean()
-        errors: dict[str, list[str]] = {}
+        from .theme import resolve_theme
 
-        def check_contrast(
-            error_field: str,
-            foreground: str | Color,
-            background: str | Color,
-            description: str,
-        ) -> None:
-            try:
-                foreground_color = (
-                    foreground if isinstance(foreground, Color) else Color(foreground)
-                )
-                ratio = foreground_color.contrast(background, method="wcag21")
-            except ValueError:
-                return
-
-            if ratio < MINIMUM_TEXT_CONTRAST:
-                errors.setdefault(error_field, []).append(
-                    f"{description} contrast is {ratio:.2f}:1; "
-                    f"WCAG AA requires at least {MINIMUM_TEXT_CONTRAST:.1f}:1."
-                )
-
-        def mix(
-            background: str, foreground: str, foreground_weight: float
-        ) -> str | Color:
-            try:
-                return Color(background).mix(
-                    foreground,
-                    percent=foreground_weight,
-                    space="srgb",
-                )
-            except ValueError:
-                return background
-
-        surface = self.surface_color or mix(
-            self.background_color,
-            self.text_color,
-            0.04,
-        )
-        link_color = self.link_color or self.primary_color
-        link_hover_color = self.link_hover_color or mix(
-            "#000000",
-            self.primary_color,
-            0.84,
-        )
-        emphasis_text = self.emphasis_text_color or mix(
-            self.background_color,
-            self.text_color,
-            0.92,
-        )
-        muted_text = self.muted_text_color or mix(
-            self.background_color,
-            self.text_color,
-            0.64,
-        )
-
-        check_contrast(
-            "text_color",
-            self.text_color,
-            self.background_color,
-            "Body text on the page background",
-        )
-        check_contrast(
-            "text_color" if not self.surface_color else "surface_color",
-            self.text_color,
-            surface,
-            "Body text on the surface",
-        )
-
-        for field_name, color, label in (
-            (
-                "link_color" if self.link_color else "primary_color",
-                link_color,
-                "Links",
-            ),
-            (
-                "link_hover_color" if self.link_hover_color else "primary_color",
-                link_hover_color,
-                "Hovered links",
-            ),
-            (
-                "emphasis_text_color" if self.emphasis_text_color else "text_color",
-                emphasis_text,
-                "Emphasis text",
-            ),
-            (
-                "muted_text_color" if self.muted_text_color else "text_color",
-                muted_text,
-                "Muted text",
-            ),
-            ("primary_color", self.primary_color, "Primary text"),
-        ):
-            check_contrast(field_name, color, self.background_color, label)
-            check_contrast(field_name, color, surface, label)
-
-        on_primary = self.on_primary_color or "#ffffff"
-        check_contrast(
-            "on_primary_color" if self.on_primary_color else "primary_color",
-            on_primary,
-            self.primary_color,
-            "Text on primary actions",
-        )
-        primary_hover = self.primary_hover_color or mix(
-            self.primary_color,
-            "#000000",
-            0.12,
-        )
-        primary_active = self.primary_active_color or mix(
-            self.primary_color,
-            "#000000",
-            0.24,
-        )
-        check_contrast(
-            "primary_hover_color"
-            if self.primary_hover_color
-            else "on_primary_color"
-            if self.on_primary_color
-            else "primary_color",
-            on_primary,
-            primary_hover,
-            "Text on hovered primary actions",
-        )
-        check_contrast(
-            "primary_active_color"
-            if self.primary_active_color
-            else "on_primary_color"
-            if self.on_primary_color
-            else "primary_color",
-            on_primary,
-            primary_active,
-            "Text on pressed primary actions",
-        )
-
-        secondary = self.secondary_color or self.text_color
-        check_contrast(
-            "secondary_color" if self.secondary_color else "text_color",
-            self.background_color,
-            secondary,
-            "Text on secondary components",
-        )
-
-        for field_name, color, explicit_surface, default_color, label in (
-            (
-                "success_color",
-                self.success_color,
-                self.success_surface_color,
-                DEFAULT_SUCCESS_COLOR,
-                "Success status",
-            ),
-            (
-                "warning_color",
-                self.warning_color,
-                self.warning_surface_color,
-                DEFAULT_WARNING_COLOR,
-                "Warning status",
-            ),
-            (
-                "danger_color",
-                self.danger_color,
-                self.danger_surface_color,
-                DEFAULT_DANGER_COLOR,
-                "Danger status",
-            ),
-        ):
-            status_color = color or default_color
-            status_surface = explicit_surface or mix(
-                self.background_color,
-                status_color,
-                0.12,
-            )
-            check_contrast(
-                field_name,
-                status_color,
-                self.background_color,
-                label,
-            )
-            check_contrast(
-                f"{field_name.removesuffix('_color')}_surface_color"
-                if explicit_surface
-                else field_name,
-                status_color,
-                status_surface,
-                label,
-            )
-
+        errors = resolve_theme(self).contrast_errors
         if errors:
             raise ValidationError(errors)

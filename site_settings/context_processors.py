@@ -5,6 +5,7 @@ from typing import TypedDict
 from django.http import HttpRequest
 
 from site_settings.models import ThemeSettings
+from site_settings.theme import get_resolved_theme, resolve_theme
 
 
 class ThemeContext(TypedDict):
@@ -13,27 +14,8 @@ class ThemeContext(TypedDict):
     theme_css_vars: dict[str, str]
     site_name: str
     favicon_url: str
-    navbar_brand_icon: str
-
-
-OPTIONAL_THEME_FIELDS = {
-    "surface_color": "--theme-surface",
-    "emphasis_text_color": "--theme-text-emphasis",
-    "border_color": "--theme-border",
-    "muted_text_color": "--theme-text-muted",
-    "link_color": "--theme-link",
-    "link_hover_color": "--theme-link-hover",
-    "on_primary_color": "--theme-on-primary",
-    "primary_hover_color": "--theme-primary-hover",
-    "primary_active_color": "--theme-primary-active",
-    "secondary_color": "--theme-secondary",
-    "success_color": "--theme-success",
-    "warning_color": "--theme-warning",
-    "danger_color": "--theme-danger",
-    "success_surface_color": "--theme-success-surface",
-    "warning_surface_color": "--theme-warning-surface",
-    "danger_surface_color": "--theme-danger-surface",
-}
+    brand_image_url: str
+    theme_revision: int
 
 
 def theme_settings(request: HttpRequest) -> ThemeContext:
@@ -43,25 +25,15 @@ def theme_settings(request: HttpRequest) -> ThemeContext:
         return {
             "site_name": "Project",
             "favicon_url": "",
-            "navbar_brand_icon": "",
-            "theme_css_vars": {},
+            "brand_image_url": "",
+            "theme_css_vars": resolve_theme(ThemeSettings()).css_variables,
+            "theme_revision": 0,
         }
-
-    css_vars = {
-        "--theme-primary": settings.primary_color,
-        "--theme-background": settings.background_color,
-        "--theme-text": settings.text_color,
-        "--theme-radius": settings.radius,
-    }
-
-    for field_name, variable_name in OPTIONAL_THEME_FIELDS.items():
-        value = getattr(settings, field_name)
-        if value:
-            css_vars[variable_name] = value
 
     return {
         "site_name": settings.site_name,
         "favicon_url": settings.favicon.url if settings.favicon else "",
-        "navbar_brand_icon": settings.navbar_brand_icon,
-        "theme_css_vars": css_vars,
+        "brand_image_url": settings.brand_image.url if settings.brand_image else "",
+        "theme_css_vars": get_resolved_theme(settings, settings.revision).css_variables,
+        "theme_revision": settings.revision,
     }
