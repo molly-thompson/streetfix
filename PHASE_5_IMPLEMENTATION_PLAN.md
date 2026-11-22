@@ -844,4 +844,3 @@ After Phase 5:
 - evaluate a headless accessibility package only if a genuinely complex
   widget is introduced;
 - remove remaining obsolete settings-derived presentation constants.
-

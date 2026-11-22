@@ -1,8 +1,8 @@
 # StreetFix Configurability Audit
 
-**Audit branch:** `refactor/configurability`  
-**Branch base:** `main` at merge commit `a2e6441`  
-**Scope:** Django models, migrations, settings, views, forms, templates, static CSS/JavaScript, seed data, and tests on `main`  
+**Audit branch:** `refactor/configurability`
+**Branch base:** `main` at merge commit `a2e6441`
+**Scope:** Django models, migrations, settings, views, forms, templates, static CSS/JavaScript, seed data, and tests on `main`
 **Audit type:** read-only findings only; no application behavior or schema was changed
 
 ## Executive Summary
