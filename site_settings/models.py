@@ -24,18 +24,6 @@ DEFAULT_SUCCESS_COLOR = "#166534"
 DEFAULT_WARNING_COLOR = "#92400e"
 DEFAULT_DANGER_COLOR = "#b91c1c"
 
-NAVBAR_BRAND_ICON_CHOICES = (
-    ("", "No icon"),
-    ("home", "Home"),
-    ("user", "User"),
-    ("info", "Info"),
-    ("search", "Search"),
-    ("settings", "Settings"),
-    ("world", "World"),
-    ("chevron-down", "Chevron down"),
-    ("triangle-down", "Triangle down"),
-)
-
 CSS_LENGTH_VALIDATOR = RegexValidator(
     regex=r"^(?:0|(?:\d+(?:\.\d+)?)(?:px|rem|em|%))$",
     message="Enter a CSS length using px, rem, em, or %, or 0.",

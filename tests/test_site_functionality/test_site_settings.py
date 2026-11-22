@@ -87,6 +87,31 @@ def test_favicon_renders_only_when_configured(
     assert 'rel="icon"' not in unset_content
 
 
+def test_brand_image_renders_beside_wordmark(
+    client: Client,
+    theme_settings: ThemeSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Render the optional brand image beside the site name."""
+    cloudinary_configuration = cloudinary_config()
+    monkeypatch.setattr(
+        cloudinary_configuration, "cloud_name", "test-cloud", raising=False
+    )
+    monkeypatch.setattr(cloudinary_configuration, "secure", True, raising=False)
+    theme_settings.brand_image = CloudinaryResource(
+        public_id="branding/wordmark-mark",
+        format="svg",
+        resource_type="image",
+    )
+    theme_settings.save()
+
+    content = client.get("/").content.decode()
+
+    assert "branding/wordmark-mark.svg" in content
+    assert 'class="sf-brand__image"' in content
+    assert theme_settings.site_name in content
+
+
 def test_admin_exposes_brand_image_without_navbar_icon() -> None:
     """Expose branding uploads without a fixed navbar icon choice."""
     request = RequestFactory().get("/admin/")
