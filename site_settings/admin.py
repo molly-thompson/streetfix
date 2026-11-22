@@ -1,9 +1,10 @@
 """Admin configuration for site-wide settings."""
 
 from django.contrib import admin
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 
 from site_settings.models import SiteConfiguration, ThemeSettings
+from site_settings.theme import resolve_theme
 
 
 @admin.register(SiteConfiguration)
@@ -131,6 +132,42 @@ class ThemeSettingsAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
             },
         ),
     ]
+
+    class Media:
+        """Load the shared component system for the live preview."""
+
+        css = {
+            "all": (
+                "css/fonts.css",
+                "css/layout.css",
+                "css/components.css",
+                "css/theme-preview.css",
+            )
+        }
+
+    def changeform_view(
+        self,
+        request: HttpRequest,
+        object_id: str | None = None,
+        form_url: str = "",
+        extra_context: dict[str, object] | None = None,
+    ) -> HttpResponse:
+        """Expose resolved variables to the theme preview."""
+        context = dict(extra_context or {})
+        instance = (
+            ThemeSettings.objects.filter(pk=1).first()
+            if object_id or ThemeSettings.objects.exists()
+            else ThemeSettings()
+        )
+        settings = instance or ThemeSettings()
+        context["theme_preview_css_vars"] = resolve_theme(settings).css_variables
+        context["theme_preview_contrast"] = resolve_theme(settings).contrast_results
+        return super().changeform_view(
+            request,
+            object_id,
+            form_url,
+            extra_context=context,
+        )
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         """Allow creating settings only when the singleton does not exist."""

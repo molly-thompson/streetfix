@@ -5,6 +5,7 @@ from cloudinary import CloudinaryResource
 from cloudinary import config as cloudinary_config
 from colorfield.widgets import ColorWidget
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import Client, RequestFactory
 
@@ -98,6 +99,26 @@ def test_admin_exposes_brand_image_without_navbar_icon() -> None:
         tuple(field for field in fieldset["fields"])
         for _, fieldset in ThemeSettingsAdmin.fieldsets
     ]
+
+
+def test_theme_admin_change_page_includes_resolved_preview(
+    client: Client,
+    django_user_model: type[User],
+    theme_settings: ThemeSettings,
+) -> None:
+    """Render the shared resolved variables in the admin preview."""
+    admin = django_user_model.objects.create_superuser(
+        username="theme-admin",
+        email="theme@example.com",
+        password="test-password",  # noqa: S106
+    )
+    client.force_login(admin)
+
+    response = client.get("/site-admin/site_settings/themesettings/1/change/")
+
+    assert response.status_code == 200
+    assert b"Theme preview" in response.content
+    assert b"--theme-primary:" in response.content
 
 
 def test_admin_navbar_link_is_removed_without_changing_other_links(

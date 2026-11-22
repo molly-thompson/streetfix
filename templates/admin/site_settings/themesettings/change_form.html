@@ -1,0 +1,62 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  <style>
+    .theme-preview {
+      {% for name, value in theme_preview_css_vars.items %}
+        {{ name }}: {{ value }};
+      {% endfor %}
+    }
+  </style>
+  <section class="theme-preview" aria-labelledby="theme-preview-heading">
+    <div class="sf-stack">
+      <div>
+        <h2 id="theme-preview-heading">Theme preview</h2>
+        <p>This preview uses the same backend-resolved values as StreetFix pages.</p>
+      </div>
+
+      <div class="theme-preview__row">
+        <button class="sf-button" type="button">Primary action</button>
+        <button class="sf-button sf-button--secondary" type="button">Secondary</button>
+        <button class="sf-button sf-button--danger" type="button">Danger</button>
+        <button class="sf-button" disabled type="button">Disabled</button>
+      </div>
+
+      <div class="sf-alert sf-alert--success">Report resolved</div>
+      <div class="sf-alert sf-alert--warning">Update needed</div>
+      <div class="sf-alert sf-alert--danger">Unable to proceed</div>
+      <div class="sf-alert">Work is in progress</div>
+
+      <div class="sf-card">
+        <div class="sf-card__header">Card and status examples</div>
+        <div class="sf-card__body sf-stack">
+          <label class="sf-label" for="theme-preview-input">Example field</label>
+          <input
+            id="theme-preview-input"
+            class="sf-input"
+            placeholder="Report a problem"
+            type="text"
+          >
+          <div class="theme-preview__row">
+            <span class="sf-status">In progress</span>
+            <span class="sf-priority">Normal priority</span>
+          </div>
+          <progress class="sf-progress" max="100" value="65">65%</progress>
+        </div>
+      </div>
+
+      <details>
+        <summary>Contrast results</summary>
+        <ul class="theme-preview__contrast">
+          {% for result in theme_preview_contrast %}
+            <li>
+              <span>{{ result.description }}</span>
+              <strong>{{ result.ratio|floatformat:2 }}:1</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      </details>
+    </div>
+  </section>
+{% endblock after_field_sets %}
