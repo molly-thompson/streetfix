@@ -1,0 +1,127 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--theme-background);
+  color: var(--theme-text);
+  color-scheme: light;
+  font-family: var(--theme-font-sans);
+  font-size: var(--theme-font-size-base);
+  font-weight: var(--theme-font-weight-base);
+  line-height: 1.5;
+  text-rendering: optimizelegibility;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--theme-background);
+  color: var(--theme-text);
+  font-family: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+label,
+select,
+summary {
+  cursor: pointer;
+}
+
+a {
+  color: var(--theme-link);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--theme-link-hover);
+}
+
+:focus-visible {
+  outline: var(--theme-outline-width) solid
+    rgb(var(--theme-primary-rgb) / var(--theme-focus-ring-alpha));
+  outline-offset: var(--theme-outline-offset);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+.sf-page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.sf-container {
+  width: min(100% - (2 * var(--theme-space-unit) * 4), 75rem);
+  margin-inline: auto;
+}
+
+.sf-main {
+  flex: 1;
+  padding-block: calc(var(--theme-space-unit) * 8);
+}
+
+.sf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--theme-space-unit) * 4);
+}
+
+.sf-cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(var(--theme-space-unit) * 3);
+}
+
+.sf-grid {
+  display: grid;
+  gap: calc(var(--theme-space-unit) * 6);
+}
+
+.sf-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (min-width: 48rem) {
+  .sf-grid--sidebar {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: var(--theme-outline-width) solid CanvasText;
+  }
+}

@@ -10,6 +10,7 @@ from django.test import Client, RequestFactory
 
 from site_settings.admin import ThemeSettingsAdmin
 from site_settings.models import ThemeSettings
+from site_settings.templatetags.streetfix_ui import ICON_NAMES, icon
 
 pytestmark = pytest.mark.django_db
 
@@ -268,3 +269,18 @@ def test_settings_are_a_singleton(theme_settings: ThemeSettings) -> None:
 
     assert ThemeSettings.objects.count() == 1
     assert ThemeSettings.objects.get().primary_color == "#654321"
+
+
+def test_icon_tag_uses_approved_sprite_symbols() -> None:
+    """Render approved symbols and reject names outside the fixed set."""
+    rendered = str(icon("arrow-right"))
+
+    assert "sf-icon" in rendered
+    assert "streetfix-icons" in rendered
+    assert "#arrow-right" in rendered
+    assert 'aria-hidden="true"' in rendered
+
+    with pytest.raises(ValueError, match="Unknown StreetFix icon"):
+        icon("not-an-approved-symbol")
+
+    assert "arrow-right" in ICON_NAMES
