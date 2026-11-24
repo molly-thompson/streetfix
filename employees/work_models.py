@@ -108,6 +108,10 @@ class WorkItem(models.Model):
     def clean(self) -> None:
         """Validate end-state and cancellation fields."""
         super().clean()
+        if self.issue_type_id and self.issue_type.kind != IssueType.Kind.ISSUE:
+            raise ValidationError(
+                {"issue_type": "Work items require a routable issue type."}
+            )
         if not self.status_id:
             return
 

@@ -36,10 +36,12 @@ class AssignWorkForm(forms.Form):
         super().__init__(*args, **kwargs)
         employee_field = self.fields["employee"]
         assert isinstance(employee_field, forms.ModelChoiceField)  # noqa: S101
-        employee_field.queryset = Employee.objects.filter(
-            department_id=work_item.issue_type.department_id,
-            user__is_active=True,
-        )
+        department_id = work_item.issue_type.department_id
+        if department_id is not None:
+            employee_field.queryset = Employee.objects.filter(
+                department_id=department_id,
+                user__is_active=True,
+            )
 
     @property
     def as_case_officer(self) -> bool:

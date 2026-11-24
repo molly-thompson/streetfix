@@ -26,7 +26,7 @@ pytestmark = pytest.mark.django_db
 def test_issue_type_name_is_unique_within_department() -> None:
     """An issue type name can be reused by another department."""
     first_department = Department.objects.create(name="Roads")
-    second_department = Department.objects.create(name="Parks")
+    second_department = Department.objects.create(name="Libraries")
     IssueType.objects.create(
         department=first_department,
         name="Damage",
@@ -58,6 +58,82 @@ def test_issue_type_name_is_unique_within_department() -> None:
         name="Damage",
         code="PARK_DAMAGE",
     )
+
+
+def test_public_issue_types_are_seeded_in_display_order() -> None:
+    """The chat's issue types exist from the start and can be reordered."""
+    seeded = list(
+        IssueType.objects.filter(active=True).order_by("sort_order").values_list("code")
+    )
+    assert seeded[0] == ("POTHOLE",)
+    assert {code for (code,) in seeded} >= {"STREETLIGHT", "OTHER"}
+    assert IssueType.objects.filter(
+        code="OTHER", department__name="Triage desk"
+    ).exists()
+
+
+def test_categories_group_issue_types_from_different_departments() -> None:
+    """A shared category can route its leaf types to different departments."""
+    roads = Department.objects.create(name="Roads")
+    libraries = Department.objects.create(name="Libraries")
+    category = IssueType.objects.create(
+        kind=IssueType.Kind.CATEGORY, name="Public spaces", code="PUBLIC"
+    )
+    for department in (roads, libraries):
+        issue = IssueType(
+            parent=category,
+            department=department,
+            name=f"{department.name} damage",
+            code=f"{department.name.upper()}_DAMAGE",
+        )
+        issue.full_clean()
+        issue.save()
+    assert category.children.count() == 2
+
+
+def test_issue_hierarchy_rejects_cycles_and_non_category_parents() -> None:
+    """Only categories may have children, and parent links cannot cycle."""
+    category = IssueType.objects.create(
+        kind=IssueType.Kind.CATEGORY, name="Places", code="PLACES"
+    )
+    child = IssueType.objects.create(
+        kind=IssueType.Kind.CATEGORY, parent=category, name="Squares", code="SQUARES"
+    )
+    category.parent = child
+    with pytest.raises(ValidationError):
+        category.full_clean()
+    issue = IssueType.objects.get(code="POTHOLE")
+    child.parent = issue
+    with pytest.raises(ValidationError):
+        child.full_clean()
+
+
+def test_issue_type_department_requirements_are_enforced() -> None:
+    """Only routable leaves have a responsible department."""
+    department = Department.objects.create(name="Roads")
+    category = IssueType(kind=IssueType.Kind.CATEGORY, name="Places", code="PLACES")
+    category.full_clean()
+    invalid_issue = IssueType(name="Damage", code="DAMAGE")
+    with pytest.raises(ValidationError):
+        invalid_issue.full_clean()
+    invalid_category = IssueType(
+        kind=IssueType.Kind.CATEGORY,
+        department=department,
+        name="Places",
+        code="PLACES",
+    )
+    with pytest.raises(IntegrityError), transaction.atomic():
+        invalid_category.save()
+
+
+def test_work_item_cannot_use_category(work_item: WorkItem) -> None:
+    """An issue grouping cannot be routed as operational work."""
+    work_item.issue_type = IssueType.objects.create(
+        kind=IssueType.Kind.CATEGORY, name="Places", code="PLACES"
+    )
+    with pytest.raises(ValidationError) as error:
+        work_item.full_clean()
+    assert "issue_type" in error.value.message_dict
 
 
 @pytest.mark.parametrize(

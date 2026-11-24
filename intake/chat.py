@@ -30,7 +30,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from employees.geo import distance_km
-from employees.organisation_models import Department, IssueType
+from employees.organisation_models import IssueType
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
 from intake.models import (
     ContactMethod,
@@ -53,18 +53,17 @@ DUPLICATE_WINDOW_DAYS = 30
 FINISHED_STATUSES = ("RESOLVED", "CLOSED", "CANCELLED")
 POSTCODE_CACHE_SECONDS = 60 * 60 * 24
 
-# Chat category -> (department, issue type code, issue type name).
-# An existing issue type with the same code is used first, so issue types the
-# team set up in Admin keep their own department.
-ISSUE_TYPES: dict[str, tuple[str, str, str]] = {
-    "pothole": ("Highways", "POTHOLE", "Pothole"),
-    "sign": ("Highways", "DAMAGED_SIGN", "Damaged sign"),
-    "drain": ("Highways", "BLOCKED_DRAIN", "Blocked drain or flooding"),
-    "flytip": ("Street Cleansing", "FLY_TIPPING", "Fly-tipping"),
-    "graffiti": ("Street Cleansing", "GRAFFITI", "Graffiti"),
-    "light": ("Street Lighting", "STREETLIGHT", "Broken streetlight"),
-    "parks": ("Parks", "PARKS_TREES", "Parks and trees"),
-    "other": ("Triage desk", "OTHER", "Other (needs review)"),
+# Chat category key -> code of the issue type it reports. Departments, names and
+# availability come from the issue types configured in the database.
+CHAT_ISSUE_CODES: dict[str, str] = {
+    "pothole": "POTHOLE",
+    "sign": "DAMAGED_SIGN",
+    "drain": "BLOCKED_DRAIN",
+    "flytip": "FLY_TIPPING",
+    "graffiti": "GRAFFITI",
+    "light": "STREETLIGHT",
+    "parks": "PARKS_TREES",
+    "other": "OTHER",
 }
 
 # Chat priority levels follow the brief's SLA table.
@@ -133,7 +132,7 @@ def parse_report(body: bytes) -> ChatReport:
         raise ValidationError("The report could not be read.")
 
     category = _text(case.get("category"), 20)
-    if category not in ISSUE_TYPES:
+    if _offered_issue_type(category) is None:
         category = "other"
     priority = _text(case.get("priority_suggested"), 10)
     if priority not in PRIORITY_CODES:
@@ -185,15 +184,23 @@ def work_item_for_reference(reference: str) -> WorkItem | None:
     return WorkItem.objects.filter(pk=int(number)).first()
 
 
+def _offered_issue_type(category: str) -> IssueType | None:
+    """Find the routable issue type behind a chat category, if it is offered."""
+    code = CHAT_ISSUE_CODES.get(category)
+    if code is None:
+        return None
+    return IssueType.objects.filter(
+        code=code,
+        kind=IssueType.Kind.ISSUE,
+        department__isnull=False,
+        active=True,
+    ).first()
+
+
 def _issue_type(category: str) -> IssueType:
-    department_name, code, name = ISSUE_TYPES[category]
-    existing = IssueType.objects.filter(code=code).first()
-    if existing is not None:
-        return existing
-    department, _ = Department.objects.get_or_create(name=department_name)
-    issue_type, _ = IssueType.objects.get_or_create(
-        department=department, name=name, defaults={"code": code}
-    )
+    issue_type = _offered_issue_type(category)
+    if issue_type is None:
+        raise ValidationError("This kind of report is not available right now.")
     return issue_type
 
 
@@ -232,7 +239,7 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     pinned at the depot (location unknown) are never matched, because their
     pin is not where the problem is.
     """
-    if category not in ISSUE_TYPES:
+    if category not in CHAT_ISSUE_CODES:
         return None
     coordinates = locate(postcode)
     if coordinates is None:
@@ -242,7 +249,7 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     margin = Decimal("0.005")  # about 500 m: cheap pre-filter before exact distance
     candidates = (
         WorkItem.objects.filter(
-            issue_type__code=ISSUE_TYPES[category][1],
+            issue_type__code=CHAT_ISSUE_CODES[category],
             created_at__gte=timezone.now() - timedelta(days=DUPLICATE_WINDOW_DAYS),
             latitude__range=(coordinates[0] - margin, coordinates[0] + margin),
             longitude__range=(coordinates[1] - margin, coordinates[1] + margin),
@@ -293,9 +300,11 @@ def _store_photo(work_item_id: int, content: bytes, extension: str) -> str:
     return default_storage.url(name)
 
 
-def _submission_text(report: ChatReport, approximate_location: bool) -> str:
+def _submission_text(
+    report: ChatReport, issue_name: str, approximate_location: bool
+) -> str:
     """Write the submission so a triage officer has everything in one place."""
-    lines = [report.sub_issue or ISSUE_TYPES[report.category][2]]
+    lines = [report.sub_issue or issue_name]
     if report.description:
         lines.append(f"Reporter's words: {report.description}")
     where = ", ".join(p for p in (report.postcode, report.location_description) if p)
@@ -366,7 +375,7 @@ def submit_report(report: ChatReport) -> tuple[WorkItem, ReportSubmission]:
             code=CONTACT_CODES.get(report.preferred_contact, "EMAIL")
         ),
         updates_requested=report.wants_updates,
-        description=_submission_text(report, approximate),
+        description=_submission_text(report, work_item.issue_type.name, approximate),
     )
 
     photo = _decode_photo(report.photo) if report.photo else None

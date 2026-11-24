@@ -37,8 +37,18 @@ class DepartmentAdmin(admin.ModelAdmin):
 class IssueTypeAdmin(admin.ModelAdmin):
     """Admin configuration for department issue types."""
 
-    list_display = ("name", "code", "department")
-    list_filter = ("department",)
+    list_display = (
+        "name",
+        "code",
+        "kind",
+        "parent",
+        "department",
+        "sensitive_content_enabled",
+        "active",
+        "sort_order",
+    )
+    list_editable = ("active", "sort_order")
+    list_filter = ("kind", "department", "active")
     search_fields = ("name", "code", "department__name")
 
 

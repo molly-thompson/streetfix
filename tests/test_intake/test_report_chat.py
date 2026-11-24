@@ -142,6 +142,7 @@ def test_report_creates_submitted_work_item(
     assert work_item.priority.code == "CRITICAL"
     assert work_item.urgency.code == "URGENT"
     assert work_item.issue_type.code == "STREETLIGHT"
+    assert work_item.issue_type.department is not None
     assert work_item.issue_type.department.name == "Street Lighting"
 
 
@@ -163,11 +164,39 @@ def test_existing_issue_type_is_reused(
 ) -> None:
     """Issue types set up in Admin keep their own department."""
     roads = Department.objects.create(name="Roads")
-    pothole = IssueType.objects.create(department=roads, name="Pothole", code="POTHOLE")
+    pothole = IssueType.objects.get(code="POTHOLE")
+    pothole.department = roads
+    pothole.save()
+    issue_types = IssueType.objects.count()
 
     post_report(chat_report(case={"category": "pothole"}))
 
     assert WorkItem.objects.get().issue_type == pothole
+    assert IssueType.objects.count() == issue_types
+
+
+def test_inactive_issue_type_goes_to_triage_desk(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """A category the team has switched off is no longer offered to reporters."""
+    IssueType.objects.filter(code="POTHOLE").update(active=False)
+
+    post_report(chat_report(case={"category": "pothole"}))
+
+    assert WorkItem.objects.get().issue_type.code == "OTHER"
+
+
+def test_report_is_refused_when_no_issue_type_is_available(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """The chat never invents issue types to keep a report."""
+    IssueType.objects.filter(code__in=("POTHOLE", "OTHER")).update(active=False)
+
+    response = post_report(chat_report(case={"category": "pothole"}))
+
+    assert response.status_code == 400
+    assert not WorkItem.objects.exists()
+    assert not ReportSubmission.objects.exists()
 
 
 def test_unknown_category_goes_to_triage_desk(
@@ -176,7 +205,9 @@ def test_unknown_category_goes_to_triage_desk(
     """Reports the chat could not categorise go to a person, not a low bucket."""
     post_report(chat_report(case={"category": "not-a-category"}))
 
-    assert WorkItem.objects.get().issue_type.department.name == "Triage desk"
+    assert (
+        WorkItem.objects.filter(issue_type__department__name="Triage desk").count() == 1
+    )
 
 
 def test_reporter_saved_when_updates_wanted(
