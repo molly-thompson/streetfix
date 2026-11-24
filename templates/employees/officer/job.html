@@ -86,7 +86,7 @@
     {% for comment in mine %}
       <div class="comment">
         <small>{{ comment.created_at|date:"j M H:i" }}</small>
-        <div>{{ comment.content }}</div>
+        <div>{{ comment.content|linebreaksbr }}</div>
       </div>
     {% empty %}
       <p class="small muted">

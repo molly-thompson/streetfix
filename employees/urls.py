@@ -13,6 +13,7 @@ from .officer_views import (
     MapView,
     MyJobsView,
     VisitReportView,
+    VisitSummaryView,
 )
 from .views import DispatchDetailView, DispatchListView, EmployeeDashboardView
 
@@ -36,4 +37,9 @@ urlpatterns = [
         name="before_photo",
     ),
     path("my-jobs/<int:pk>/report/", VisitReportView.as_view(), name="visit_report"),
+    path(
+        "my-jobs/<int:pk>/report/summary/",
+        VisitSummaryView.as_view(),
+        name="visit_summary",
+    ),
 ]

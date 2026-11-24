@@ -181,3 +181,21 @@ def add_comment(work_item: WorkItem, employee: Employee, text: str) -> None:
     WorkItemComment.objects.create(
         work_item=work_item, author=employee, content=text.strip()
     )
+
+
+@transaction.atomic
+def submit_report_with_summary(
+    report: WorkItemReport, employee: Employee, text: str
+) -> WorkItemComment:
+    """Submit the report and leave the officer's approved summary as a comment."""
+    text = text.strip()
+    if not text:
+        raise ValidationError("The summary can't be empty.")
+    report.ai_summary = text
+    report.save(update_fields=("ai_summary",))
+    submit_report(report, employee)
+    return WorkItemComment.objects.create(
+        work_item=report.work_item,
+        author=employee,
+        content=f"Visit summary, approved by {employee}:\n\n{text}",
+    )

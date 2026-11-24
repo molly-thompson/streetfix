@@ -89,6 +89,12 @@
                 {% endif %}
                 {{ report.submitted_at|date:"d M H:i" }}
               </dd>
+              {% if report.ai_summary %}
+                <dt>Case note</dt>
+                <dd>
+                  {{ report.ai_summary|linebreaksbr }}
+                </dd>
+              {% endif %}
               {% if report.findings %}
                 <dt>What they found</dt>
                 <dd>
@@ -191,7 +197,9 @@
                   name="note"
                   placeholder="Optional when approving, required when sending back"
                 >
-                <span class="help">Approving closes the job. Sending back reopens the report for the case officer.</span>
+                <span
+                  class="help"
+                >Approving closes the job. Sending back reopens the report for the case officer.</span>
               </div>
               <div class="form-row">
                 <button class="btn sm primary" name="approve" type="submit">Approve and close</button>
