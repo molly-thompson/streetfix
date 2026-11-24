@@ -4,15 +4,17 @@ from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 
-from employees.organisation_models import Department, IssueType
+from employees.organisation_models import Department, Employee, IssueType
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
 from intake.models import (
     ContactMethod,
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
+    TriageAttempt,
 )
 
 pytestmark = pytest.mark.django_db
@@ -44,6 +46,101 @@ def test_contact_methods_are_seeded_and_have_fixed_codes() -> None:
         ("POST", "Post"),
     }
     assert ContactMethod._meta.get_field("code").editable is False
+
+
+def test_submission_can_be_received_without_work_item_or_location() -> None:
+    """A public submission is durable before operational work exists."""
+    submission = ReportSubmission.objects.create(
+        contact_method=ContactMethod.objects.get(code="EMAIL"),
+        updates_requested=False,
+        description="Something needs attention.",
+    )
+
+    submission.full_clean()
+    assert submission.work_item is None
+    assert submission.latitude is None
+    assert submission.longitude is None
+    assert submission.triage_state == ReportSubmission.TriageState.RECEIVED
+    assert submission.reported_impact == ReportSubmission.ReportedImpact.UNKNOWN
+    assert (
+        submission.reported_time_sensitivity
+        == ReportSubmission.ReportedTimeSensitivity.UNKNOWN
+    )
+    assert (
+        submission.reported_sensitive_content
+        == ReportSubmission.ReportedSensitiveContent.UNKNOWN
+    )
+
+
+def test_submission_can_be_anonymous_without_contact_method() -> None:
+    """Reports that do not request updates need no contact details."""
+    submission = ReportSubmission.objects.create(
+        updates_requested=False,
+        description="Something needs attention.",
+    )
+    submission.full_clean()
+    assert submission.reporter is None
+    assert submission.contact_method is None
+
+
+def test_submission_requires_both_coordinates() -> None:
+    """Incomplete coordinates are rejected even when validation is bypassed."""
+    submission = ReportSubmission(
+        updates_requested=False,
+        description="Something needs attention.",
+        latitude=Decimal("51.500000"),
+    )
+    with pytest.raises(ValidationError):
+        submission.full_clean()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        submission.save()
+
+
+def test_submission_validates_coordinate_ranges() -> None:
+    """Report coordinates use the same bounds as work-item coordinates."""
+    submission = ReportSubmission(
+        updates_requested=False,
+        description="Something needs attention.",
+        latitude=Decimal("91"),
+        longitude=Decimal("-181"),
+    )
+    with pytest.raises(ValidationError) as error:
+        submission.full_clean()
+    assert {"latitude", "longitude"} <= set(error.value.message_dict)
+
+
+def test_triage_attempt_preserves_evidence_and_reviewer(employee: Employee) -> None:
+    """Triage history retains structured outcomes and reviewer attribution."""
+    submission = ReportSubmission.objects.create(
+        updates_requested=False,
+        description="Something needs attention.",
+    )
+    attempt = TriageAttempt.objects.create(
+        submission=submission,
+        stage=TriageAttempt.Stage.HUMAN,
+        policy_version="draft-1",
+        field_outcomes={"priority": {"status": "determined", "value": "HIGH"}},
+        evidence={"impact": "significant disruption"},
+        decision="NEEDS_REVIEW",
+        reason="Location needs confirmation.",
+        reviewer=employee,
+    )
+
+    attempt.refresh_from_db()
+    assert attempt.field_outcomes["priority"]["value"] == "HIGH"
+    assert attempt.evidence["impact"] == "significant disruption"
+    assert attempt.reviewer == employee
+    assert attempt.policy_version == "draft-1"
+    with pytest.raises(ValidationError):
+        attempt.save()
+    with pytest.raises(ValidationError):
+        attempt.delete()
+    with pytest.raises(ValidationError):
+        TriageAttempt.objects.filter(pk=attempt.pk).update(reason="Rewritten")
+    with pytest.raises(ValidationError):
+        TriageAttempt.objects.filter(pk=attempt.pk).delete()
+    with pytest.raises(ProtectedError):
+        submission.delete()
 
 
 def test_deleting_reporter_preserves_submission_and_clears_reporter_reference() -> None:

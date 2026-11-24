@@ -10,6 +10,7 @@ from intake.models import (
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
+    TriageAttempt,
 )
 
 
@@ -55,9 +56,27 @@ class ReportSubmissionAdmin(admin.ModelAdmin):
         "updates_requested",
         "submitted_at",
     )
-    list_filter = ("contact_method", "updates_requested", "submitted_at")
+    list_filter = (
+        "contact_method",
+        "updates_requested",
+        "triage_state",
+        "submitted_at",
+    )
     search_fields = ("description", "reporter__name", "reporter__email")
-    readonly_fields = ("submitted_at",)
+    readonly_fields = (
+        "work_item",
+        "reported_issue_type",
+        "reported_issue_path",
+        "other_selected",
+        "location_description",
+        "reported_impact",
+        "reported_time_sensitivity",
+        "reported_sensitive_content",
+        "latitude",
+        "longitude",
+        "triage_state",
+        "submitted_at",
+    )
 
 
 @admin.register(ReportSubmissionPhoto)
@@ -66,3 +85,38 @@ class ReportSubmissionPhotoAdmin(admin.ModelAdmin):
 
     list_display = ("report_submission", "image_url", "uploaded_at")
     readonly_fields = ("uploaded_at",)
+
+
+@admin.register(TriageAttempt)
+class TriageAttemptAdmin(admin.ModelAdmin):
+    """Expose triage history as read-only in the admin."""
+
+    list_display = ("submission", "stage", "reviewer", "decision", "created_at")
+    list_filter = ("stage", "created_at")
+    readonly_fields = (
+        "submission",
+        "stage",
+        "policy_version",
+        "field_outcomes",
+        "evidence",
+        "decision",
+        "reason",
+        "reviewer",
+        "created_at",
+    )
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        """Keep history creation tied to triage operations."""
+        return False
+
+    def has_change_permission(
+        self, request: HttpRequest, obj: TriageAttempt | None = None
+    ) -> bool:
+        """Prevent changes to recorded triage attempts."""
+        return False
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: TriageAttempt | None = None
+    ) -> bool:
+        """Prevent deletion of recorded triage attempts."""
+        return False
