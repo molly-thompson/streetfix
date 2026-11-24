@@ -1,0 +1,8 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+  {% if original and original.status == "DRAFT" and perms.intake.activate_triagepolicy %}
+    <li><a href="{% url 'admin:intake_triagepolicy_activate' original.pk %}">Review and activate</a></li>
+  {% endif %}
+  {{ block.super }}
+{% endblock object-tools-items %}
