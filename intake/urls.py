@@ -7,11 +7,20 @@ with the public report chat as the home page and its JSON API.
 from django.urls import path
 
 from .views import (
+    AcceptReportView,
+    CorrectLocationView,
     CreateReportView,
+    DuplicateReviewView,
+    FinalizedReportListView,
     NearbyReportView,
     OldReportLinkView,
+    OutOfScopeView,
+    RecoverReportView,
+    ReopenReportView,
     ReportChatView,
     ReportStatusView,
+    ReviewDetailView,
+    ReviewQueueView,
 )
 
 app_name = "intake"
@@ -22,6 +31,31 @@ urlpatterns = [
     path("", ReportChatView.as_view(), name="form_intake"),
     # Older links to /report/ still reach the chat.
     path("report/", OldReportLinkView.as_view()),
+    path("review/", ReviewQueueView.as_view(), name="review_queue"),
+    path(
+        "review/finalized/", FinalizedReportListView.as_view(), name="finalized_reports"
+    ),
+    path(
+        "review/finalized/<int:pk>/", ReopenReportView.as_view(), name="reopen_report"
+    ),
+    path("review/<int:pk>/", ReviewDetailView.as_view(), name="review_detail"),
+    path(
+        "review/<int:pk>/recover/", RecoverReportView.as_view(), name="recover_report"
+    ),
+    path(
+        "review/<int:pk>/location/",
+        CorrectLocationView.as_view(),
+        name="correct_location",
+    ),
+    path(
+        "review/<int:pk>/out-of-scope/", OutOfScopeView.as_view(), name="out_of_scope"
+    ),
+    path(
+        "review/<int:pk>/duplicate/",
+        DuplicateReviewView.as_view(),
+        name="duplicate_review",
+    ),
+    path("review/<int:pk>/accept/", AcceptReportView.as_view(), name="accept_report"),
     path("api/cases/", CreateReportView.as_view(), name="create_report"),
     path("api/cases/nearby/", NearbyReportView.as_view(), name="nearby_report"),
     path(

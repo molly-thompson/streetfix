@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Review duplicate · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <p><a href="{% url 'intake:review_detail' submission.pk %}">Back to report {{ submission.pk }}</a></p>
+  <h1>Review a possible duplicate</h1>
+  <form class="uk-form-stacked" method="get">
+    <label class="uk-form-label" for="{{ lookup.work_item_id.id_for_label }}">Work item number</label>
+    <div class="uk-form-controls">{{ lookup.work_item_id }}</div>
+    {% if lookup.errors %}<div class="uk-text-danger" role="alert">{{ lookup.errors }}</div>{% endif %}
+    <button class="uk-button uk-button-default uk-margin-small-top" type="submit">Find work item</button>
+  </form>
+  {% if work %}
+    <h2>Work item {{ work.pk }}</h2>
+    <p>{{ work.issue_type }} · {{ work.issue_type.department }} · {{ work.status }}</p>
+    <p>Location: {{ work.latitude }}, {{ work.longitude }}</p>
+    <h3>Descriptions on this work item</h3>
+    <ul class="uk-list uk-list-divider">
+      {% for report in related_reports %}
+        <li>{{ report.description|linebreaksbr }}</li>
+      {% empty %}
+        <li>No report descriptions are available.</li>
+      {% endfor %}
+    </ul>
+    {% if work.status.code == "RESOLVED" %}
+      <p><strong>This may be a recurrence.</strong> Link only if you have confirmed it is the same issue.</p>
+    {% endif %}
+    {% if work.status.code == "CLOSED" or work.status.code == "CANCELLED" %}
+      <p>Closed or cancelled work cannot receive a duplicate report.</p>
+    {% else %}
+      <form class="uk-form-stacked" method="post">
+        {% csrf_token %}
+        {{ form.work_item_id }}
+        {% if form.non_field_errors %}
+          <div class="uk-alert-danger" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div class="uk-margin">
+          <label class="uk-form-label" for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
+          <div class="uk-form-controls">{{ form.reason }}</div>
+          {% if form.reason.errors %}<div class="uk-text-danger" role="alert">{{ form.reason.errors }}</div>{% endif %}
+        </div>
+        {% if work.status.code == "RESOLVED" %}
+          <label>{{ form.confirmed_not_recurrence }} {{ form.confirmed_not_recurrence.label }}</label>
+        {% endif %}
+        <p>
+          <button class="uk-button uk-button-primary" type="submit">Link duplicate</button>
+        </p>
+      </form>
+    {% endif %}
+  {% elif lookup.is_bound %}
+    <p>No work item found for that number.</p>
+  {% endif %}
+{% endblock content %}

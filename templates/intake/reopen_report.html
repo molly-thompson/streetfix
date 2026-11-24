@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Reopen report {{ submission.pk }} · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <p><a href="{% url 'intake:finalized_reports' %}">Back to final decisions</a></p>
+  <h1>Reopen report {{ submission.pk }}</h1>
+  <p>Current decision: {{ submission.get_triage_state_display }}</p>
+  <h2>Reported issue</h2>
+  <p>{{ submission.description|linebreaksbr }}</p>
+  {% if submission.work_item_id %}<p>Currently linked to work item {{ submission.work_item_id }}.</p>{% endif %}
+  <h2>Decision history</h2>
+  <ul class="uk-list uk-list-divider">
+    {% for attempt in submission.triage_attempts.all %}
+      <li>{{ attempt.created_at }}: {{ attempt.decision }}{% if attempt.reviewer %} by {{ attempt.reviewer }}{% endif %}{% if attempt.reason %} — {{ attempt.reason }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p>Reopening returns the report to the review queue. Existing work will not be changed.</p>
+  <form class="uk-form-stacked" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="uk-alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    {% include "intake/_report_field.html" with field=form.reason %}
+
+    <button class="uk-button uk-button-primary" type="submit">Reopen report</button>
+  </form>
+{% endblock content %}

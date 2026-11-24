@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import pytest
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
 from django.core.cache import cache
 from django.test import Client
 from django.urls import resolve, reverse
@@ -15,6 +15,7 @@ from employees.dispatch import assign_work
 from employees.organisation_models import Employee
 from employees.views import EmployeeDashboardView
 from employees.work_models import Priority, WorkItem, WorkItemStatus
+from intake.models import ReportSubmission
 
 pytestmark = pytest.mark.django_db
 
@@ -264,3 +265,23 @@ def test_job_page_shows_the_street_address(
 
     assert "Leek Street, Digbeth, B4 7FW" in content
     assert "google.com/maps/search/?api=1&query=51.500000,-0.120000" in content
+
+
+def test_sidebar_links_to_report_review_only_for_reviewers(
+    manager_client: Client, manager: Employee
+) -> None:
+    """Managers without the review permission do not see the review queue."""
+    ReportSubmission.objects.create(updates_requested=False, description="Waiting.")
+    url = reverse("intake:review_queue")
+
+    assert (
+        url not in manager_client.get(reverse("employees:dashboard")).content.decode()
+    )
+
+    manager.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    content = manager_client.get(reverse("employees:dashboard")).content.decode()
+
+    assert f'href="{url}"' in content
+    assert "Report review" in content

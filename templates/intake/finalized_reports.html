@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Final triage decisions · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <p><a href="{% url 'intake:review_queue' %}">Back to review reports</a></p>
+  <h1>Rejected and duplicate reports</h1>
+  <p>Select a report to review its decision. Accepted work must be handled through the work process.</p>
+  {% if submissions %}
+    <ul class="uk-list uk-list-divider">
+      {% for submission in submissions %}
+        <li>
+          <a href="{% url 'intake:reopen_report' submission.pk %}">Report {{ submission.pk }}</a>
+          — {{ submission.get_triage_state_display }}, {{ submission.submitted_at }}
+        </li>
+      {% endfor %}
+    </ul>
+    {% if is_paginated %}
+      <nav aria-label="Report pages">
+        <ul class="uk-pagination">
+          {% if page_obj.has_previous %}
+            <li><a href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+          {% endif %}
+          <li><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+            <li><a href="?page={{ page_obj.next_page_number }}">Next</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  {% else %}
+    <p>There are no rejected or duplicate reports.</p>
+  {% endif %}
+{% endblock content %}

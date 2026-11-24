@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Mark report out of scope · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <p><a href="{% url 'intake:review_detail' submission.pk %}">Back to report {{ submission.pk }}</a></p>
+  <h1>Mark report out of scope</h1>
+  <p>This records your decision and removes the report from the review queue. No work item will be created.</p>
+  <form class="uk-form-stacked" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="uk-alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    {% for field in form %}
+      <div class="uk-margin">
+        <label class="uk-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        <div class="uk-form-controls">{{ field }}</div>
+        {% if field.errors %}<div class="uk-text-danger" role="alert">{{ field.errors }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <button class="uk-button uk-button-primary" type="submit">Mark out of scope</button>
+  </form>
+{% endblock content %}
