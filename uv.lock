@@ -138,11 +138,11 @@ wheels = [
 
 [[package]]
 name = "coloraide"
-version = "8.15"
+version = "8.16"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/9a/af7d17f624ba3f26535d0b3f6914ead1581ac9c5517100de00e22b138147/coloraide-8.15.tar.gz", hash = "sha256:947bf40add7c588abad89b2e9aaf766dde84a7c931247a8480335230e30cb89b", size = 22344970, upload-time = "2026-11-12T18:28:37.878Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/0e/8143448596675699935f7bb51298358408a343c172f093fc869dcd0f7052/coloraide-8.16.tar.gz", hash = "sha256:3cb9fcf716c99841ae0b88e619544cfb50da36c83a6fdccbe204262c1053523f", size = 22348382, upload-time = "2026-11-16T02:42:14.542Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/55/74a6dc8b23a08fa5c8682205ed6b433485c8ea49fc451e8e2271d49e57b3/coloraide-8.15-py3-none-any.whl", hash = "sha256:007f07853197d6c24ace2c498ec129d410987aeaaff46873091aa6fbca82d856", size = 352523, upload-time = "2026-11-12T18:28:35.915Z" },
+    { url = "https://files.pythonhosted.org/packages/da/97/1c29840eaa2cb0dad7db4028bd2cdf372ccdb6bb3beaf9453ca248af5d9f/coloraide-8.16-py3-none-any.whl", hash = "sha256:55674f80c3fea2e83cd88f9b6deb0bb34320124f51c98a0d6fd7096e3dac0dcb", size = 354715, upload-time = "2026-11-16T02:42:12.436Z" },
 ]
 
 [[package]]
