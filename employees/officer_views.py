@@ -9,7 +9,11 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import never_cache
+
+from intake.models import ReportPhotoSlot
 
 from . import field_work, geo, report_summary
 from .forms import BeforePhotoForm, CommentForm
@@ -167,6 +171,7 @@ class AlertsView(OfficerMixin, View):
         return self.page("alerts.html", {"tab": "alerts", "alerts": alerts})
 
 
+@method_decorator(never_cache, name="dispatch")
 class JobView(OfficerMixin, View):
     """One job: details, next step, and comments to the manager."""
 
@@ -187,6 +192,9 @@ class JobView(OfficerMixin, View):
                 "leg": getattr(job, "leg", None),
                 "on_site_minutes": geo.ON_SITE_MINUTES,
                 "description": submission.description if submission else "",
+                "report_photos": ReportPhotoSlot.objects.filter(
+                    draft__submission__work_item=item, asset_id__isnull=False
+                ).order_by("created_at", "pk"),
                 "from_management": [c for c in comments if c.author_id != employee.pk],
                 "mine": [c for c in comments if c.author_id == employee.pk],
                 "form": form or CommentForm(),
