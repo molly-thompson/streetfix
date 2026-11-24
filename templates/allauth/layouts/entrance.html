@@ -2,11 +2,15 @@
 
 {% comment %} djlint:off {% endcomment %}
 {% block page_content %}
+<style>
+  main:has(.entrance-card) { width: 100%; box-sizing: border-box; }
+  .entrance-card { width: 100%; max-width: 560px; }
+</style>
 <div class="uk-section uk-section-large uk-flex uk-flex-middle uk-flex-center uk-flex-auto">
   <div class="uk-container uk-width-1-1">
-    <div class="uk-flex uk-flex-center" uk-grid>
-      <div class="uk-width-1-1 uk-width-4-5@s uk-width-2-3@m uk-width-1-2@l">
-        <div class="uk-card uk-card-default uk-card-body uk-border-rounded uk-box-shadow-small uk-padding-large">
+    <div class="uk-flex uk-flex-center">
+      <div class="uk-width-1-1 uk-flex uk-flex-center">
+        <div class="uk-card uk-card-default uk-card-body uk-border-rounded uk-box-shadow-small uk-padding-large entrance-card">
           
           <div class="uk-text-center">
             {% block entrance_content %} {% endblock entrance_content %}
