@@ -13,6 +13,17 @@
     config.zoom,
   );
   L.tileLayer(config.tile_url, { maxZoom: 22 }).addTo(map);
+  // Leaflet guesses its icon folder from the CSS, which breaks when static
+  // file names are fingerprinted, so the server supplies the exact URLs.
+  const icon = L.icon({
+    iconUrl: config.icons["marker-icon"],
+    iconRetinaUrl: config.icons["marker-icon-2x"],
+    shadowUrl: config.icons["marker-shadow"],
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  });
   let marker = null;
 
   function showCoordinates(moveMap) {
@@ -27,7 +38,7 @@
       return;
     }
     if (marker) marker.setLatLng([lat, lng]);
-    else marker = L.marker([lat, lng]).addTo(map);
+    else marker = L.marker([lat, lng], { icon }).addTo(map);
     if (moveMap) map.panTo([lat, lng]);
   }
 

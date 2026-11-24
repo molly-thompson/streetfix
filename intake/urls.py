@@ -6,6 +6,12 @@ with the public report chat as the home page and its JSON API.
 
 from django.urls import path
 
+from .report_views import (
+    PhotoAuthorizeView,
+    PhotoVerifyView,
+    ReportReceivedView,
+    SubmitReportView,
+)
 from .views import (
     AcceptReportView,
     CorrectLocationView,
@@ -18,6 +24,7 @@ from .views import (
     RecoverReportView,
     ReopenReportView,
     ReportChatView,
+    ReportPhotoView,
     ReportStatusView,
     ReviewDetailView,
     ReviewQueueView,
@@ -31,7 +38,18 @@ urlpatterns = [
     path("", ReportChatView.as_view(), name="form_intake"),
     # Older links to /report/ still reach the chat.
     path("report/", OldReportLinkView.as_view()),
+    path("report/form/", SubmitReportView.as_view(), name="submit_report"),
+    path("report/form/received/", ReportReceivedView.as_view(), name="report_received"),
+    path("report/photos/", PhotoAuthorizeView.as_view(), name="photo_authorize"),
+    path(
+        "report/photos/<uuid:draft_id>/<uuid:slot_id>/verify/",
+        PhotoVerifyView.as_view(),
+        name="photo_verify",
+    ),
     path("review/", ReviewQueueView.as_view(), name="review_queue"),
+    path(
+        "review/photos/<uuid:slot_id>/", ReportPhotoView.as_view(), name="report_photo"
+    ),
     path(
         "review/finalized/", FinalizedReportListView.as_view(), name="finalized_reports"
     ),

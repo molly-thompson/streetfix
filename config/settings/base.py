@@ -106,6 +106,29 @@ GEOCODER_USER_AGENT = "StreetFix field app"
 # Store officers' site photos on Cloudinary when it is configured.
 OFFICER_PHOTOS_ON_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
 
+# Public report submission stays disabled until deployment safeguards are ready.
+INTAKE_PUBLIC_REPORTING_ENABLED = os.environ.get(
+    "INTAKE_PUBLIC_REPORTING_ENABLED", ""
+).lower() in ("1", "true", "yes")
+
+# WSGI META key of a client-address header that the hosting edge sets and
+# clients cannot forge. Used to rate limit public actions per address.
+INTAKE_CLIENT_IP_HEADER = os.environ.get("INTAKE_CLIENT_IP_HEADER", "REMOTE_ADDR")
+
+# Name of a signed Cloudinary upload preset that uses authenticated delivery.
+# Report photos are disabled until it is configured.
+INTAKE_PHOTO_UPLOAD_PRESET = os.environ.get("INTAKE_PHOTO_UPLOAD_PRESET", "")
+
+# Public intake maps remain disabled until a deployment supplies a tile
+# provider, attribution, and initial map centre.
+INTAKE_MAP = {
+    "tile_url": os.environ.get("INTAKE_MAP_TILE_URL", ""),
+    "attribution": os.environ.get("INTAKE_MAP_ATTRIBUTION", ""),
+    "latitude": os.environ.get("INTAKE_MAP_LATITUDE", ""),
+    "longitude": os.environ.get("INTAKE_MAP_LONGITUDE", ""),
+    "zoom": os.environ.get("INTAKE_MAP_ZOOM", "13"),
+}
+
 # Look up map coordinates for postcodes in public reports (postcodes.io).
 POSTCODE_LOOKUP = True
 
