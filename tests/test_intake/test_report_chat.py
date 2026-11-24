@@ -144,6 +144,10 @@ def test_report_creates_submitted_work_item(
     assert work_item.issue_type.code == "STREETLIGHT"
     assert work_item.issue_type.department is not None
     assert work_item.issue_type.department.name == "Street Lighting"
+    assert (
+        ReportSubmission.objects.get().triage_state
+        == ReportSubmission.TriageState.LEGACY_LINKED
+    )
 
 
 def test_submission_keeps_triage_reasons_for_officer(
@@ -220,6 +224,7 @@ def test_reporter_saved_when_updates_wanted(
     assert submission.updates_requested is True
     assert submission.reporter is not None
     assert submission.reporter.email == "amir@example.com"
+    assert submission.contact_method is not None
     assert submission.contact_method.code == "EMAIL"
 
 
@@ -251,7 +256,9 @@ def test_text_message_contact_maps_to_telephone(
         )
     )
 
-    assert ReportSubmission.objects.get().contact_method.code == "TELEPHONE"
+    method = ReportSubmission.objects.get().contact_method
+    assert method is not None
+    assert method.code == "TELEPHONE"
 
 
 def test_unknown_postcode_location_is_flagged(

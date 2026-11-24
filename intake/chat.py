@@ -376,6 +376,7 @@ def submit_report(report: ChatReport) -> tuple[WorkItem, ReportSubmission]:
         ),
         updates_requested=report.wants_updates,
         description=_submission_text(report, work_item.issue_type.name, approximate),
+        triage_state=ReportSubmission.TriageState.LEGACY_LINKED,
     )
 
     photo = _decode_photo(report.photo) if report.photo else None
