@@ -7,7 +7,6 @@ from uuid import UUID
 
 import cloudinary.exceptions
 from django.conf import settings
-from django.contrib.staticfiles.storage import staticfiles_storage
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.http.response import HttpResponseBase
@@ -21,7 +20,7 @@ from global_login_required import login_not_required
 from employees.organisation_models import IssueType
 from intake.forms import ReportSubmissionForm
 from intake.models import ContactMethod
-from intake.services.map_config import intake_map_config
+from intake.services.map_config import public_map_config
 from intake.services.photo_reservations import verify_photo_slot
 from intake.services.photo_upload import authorize_upload, photo_upload_enabled
 from intake.services.rate_limit import (
@@ -46,7 +45,7 @@ class PublicReportingEnabledMixin(View):
         return super().dispatch(request, *args, **kwargs)
 
 
-def _session_key(request: HttpRequest) -> str:
+def session_key(request: HttpRequest) -> str:
     """Return the browser session's key, starting a session if needed."""
     if not request.session.session_key:
         request.session.create()
@@ -70,19 +69,10 @@ class SubmitReportView(PublicReportingEnabledMixin, FormView):  # type: ignore[t
             .order_by("sort_order", "name")
             .values("id", "parent_id", "name", "kind")
         )
-        map_config = intake_map_config()
+        map_config = public_map_config()
         if map_config is not None:
-            context["map_config"] = {
-                "tile_url": map_config.tile_url,
-                "latitude": map_config.latitude,
-                "longitude": map_config.longitude,
-                "zoom": map_config.zoom,
-                "icons": {
-                    name: staticfiles_storage.url(f"vendor/leaflet/images/{name}.png")
-                    for name in ("marker-icon", "marker-icon-2x", "marker-shadow")
-                },
-            }
-            context["map_attribution"] = map_config.attribution
+            context["map_config"] = map_config
+            context["map_attribution"] = map_config["attribution"]
         context["contact_methods"] = {
             str(method.pk): method.code for method in ContactMethod.objects.all()
         }
@@ -93,7 +83,7 @@ class SubmitReportView(PublicReportingEnabledMixin, FormView):  # type: ignore[t
         """Limit submissions per address, then persist the report."""
         try:
             reserve(REPORT_SUBMISSION, client_address(self.request))
-            form.save(session_key=_session_key(self.request))
+            form.save(session_key=session_key(self.request))
         except ValidationError as exc:
             form.add_error(None, exc)
             return self.form_invalid(form)
@@ -130,7 +120,7 @@ class PhotoAuthorizeView(PublicReportingEnabledMixin, View):
             return JsonResponse({"error": "The request could not be read."}, status=400)
         try:
             grant = authorize_upload(
-                session_key=_session_key(request),
+                session_key=session_key(request),
                 address=client_address(request),
                 draft_id=draft_id,
             )
@@ -158,7 +148,7 @@ class PhotoVerifyView(PublicReportingEnabledMixin, View):
         """Record verified metadata for the browser's own reserved slot."""
         try:
             slot = verify_photo_slot(
-                draft_id=draft_id, slot_id=slot_id, session_key=_session_key(request)
+                draft_id=draft_id, slot_id=slot_id, session_key=session_key(request)
             )
         except ValidationError as exc:
             return _error(exc)

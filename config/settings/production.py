@@ -14,6 +14,10 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 ALLOWED_HOSTS = [
     host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",") if host.strip()
 ]
+# Public report rate limits count requests per client address, so the deployment
+# must name a WSGI META key (for example HTTP_X_REAL_IP) that its edge sets and
+# clients cannot forge. Behind a proxy, REMOTE_ADDR would be shared by everyone.
+INTAKE_CLIENT_IP_HEADER = os.environ["INTAKE_CLIENT_IP_HEADER"]
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.environ["CSRF_TRUSTED_ORIGINS"].split(",")

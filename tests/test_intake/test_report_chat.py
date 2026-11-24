@@ -1,33 +1,38 @@
 """Tests for the public report chat and its API."""
 
-import base64
 import json
+import re
 from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 from unittest import mock
+from uuid import uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import Client
+from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from pytest_django.fixtures import Settings
+from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks, Settings
 
-from employees.organisation_models import Department, IssueType
+from employees.organisation_models import IssueType
 from employees.work_models import WorkItem, WorkItemStatus
-from intake.chat import locate, reference_for
-from intake.models import Reporter, ReportSubmission
+from intake.chat import locate
+from intake.models import Reporter, ReportSubmission, TriageAttempt
+from intake.services.rate_limit import REPORT_SUBMISSION
+from intake.services.reference import display_reference, submission_for_reference
 
 pytestmark = pytest.mark.django_db
 
-PNG_1PX = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQ"
-    "GAhKmMIQAAAABJRU5ErkJggg=="
-)
+
+def reference_of(work_item: WorkItem) -> str:
+    """Create a report behind a work item and return its public reference."""
+    submission = ReportSubmission.objects.create(
+        work_item=work_item, updates_requested=False, description="An earlier report."
+    )
+    return display_reference(submission)
 
 
 def chat_report(**overrides: Any) -> dict[str, Any]:
@@ -44,7 +49,6 @@ def chat_report(**overrides: Any) -> dict[str, Any]:
         "location": {"postcode": "B29 1AA", "description": "Outside the Co-op"},
         "duplicate_of": None,
         "possible_duplicate_of": None,
-        "photo": None,
     }
     reporter: dict[str, Any] = {
         "name": "Amir",
@@ -129,54 +133,82 @@ def test_old_report_link_redirects_to_home(client: Client) -> None:
     assert response.headers["Location"] == reverse("intake:form_intake")
 
 
-def test_report_creates_submitted_work_item(
+def test_report_is_saved_for_review_not_as_work(
     post_report: Callable[[dict[str, Any]], Any],
+    django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
 ) -> None:
-    """A chat report creates a work item that still needs triage."""
-    response = post_report(chat_report())
+    """A chat report waits for a reviewer; it never creates work itself."""
+    with django_capture_on_commit_callbacks(execute=True):
+        response = post_report(chat_report())
 
     assert response.status_code == 201
-    work_item = WorkItem.objects.get()
-    assert response.json()["reference"] == reference_for(work_item)
-    assert work_item.status.code == "SUBMITTED"
-    assert work_item.priority.code == "CRITICAL"
-    assert work_item.urgency.code == "URGENT"
-    assert work_item.issue_type.code == "STREETLIGHT"
-    assert work_item.issue_type.department is not None
-    assert work_item.issue_type.department.name == "Street Lighting"
-    assert (
-        ReportSubmission.objects.get().triage_state
-        == ReportSubmission.TriageState.LEGACY_LINKED
-    )
+    assert not WorkItem.objects.exists()
+    submission = ReportSubmission.objects.get()
+    assert submission.work_item is None
+    assert submission.triage_state == ReportSubmission.TriageState.NEEDS_REVIEW
+    assert submission.reported_issue_type is not None
+    assert submission.reported_issue_type.code == "STREETLIGHT"
+    assert submission.reported_time_sensitivity == "PROMPT"
+    assert response.json() == {
+        "reference": display_reference(submission),
+        "status": "Received",
+    }
 
 
-def test_submission_keeps_triage_reasons_for_officer(
+def test_reference_is_random_and_reveals_nothing_about_the_report(
     post_report: Callable[[dict[str, Any]], Any],
 ) -> None:
-    """The submission explains the suggestion and the reporter's language."""
+    """References are not derived from IDs, and every report gets its own."""
+    first = post_report(chat_report()).json()["reference"]
+    second = post_report(chat_report()).json()["reference"]
+
+    submissions = ReportSubmission.objects.order_by("pk")
+    assert first != second
+    assert str(submissions[0].pk) not in first.replace("-", "")
+    assert re.fullmatch(r"[A-Z2-9]{4}-[A-Z2-9]{4}", first)
+
+
+@override_settings(INTAKE_REFERENCE_PREFIX="REF-")
+def test_reference_prefix_comes_from_configuration(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Deployments choose their own prefix, and lookups accept it or omit it."""
+    reference = post_report(chat_report()).json()["reference"]
+
+    assert reference.startswith("REF-")
+    assert submission_for_reference(reference) == ReportSubmission.objects.get()
+    assert submission_for_reference(reference.removeprefix("REF-").lower())
+
+
+def test_ai_suggestion_is_kept_as_evidence_for_the_reviewer(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """The browser's priority is recorded as a suggestion, not applied."""
+    post_report(chat_report())
+
+    attempt = TriageAttempt.objects.get(stage=TriageAttempt.Stage.AI)
+    assert attempt.decision == "SUGGESTED"
+    assert attempt.field_outcomes["priority"] == {
+        "state": "suggested",
+        "value": "CRITICAL",
+    }
+    assert attempt.field_outcomes["urgency"]["value"] == "URGENT"
+    assert attempt.evidence["priority_reasons"] == [
+        'Raised to Urgent: "Wires hanging or exposed"'
+    ]
+
+
+def test_submission_keeps_the_reporters_account_for_the_reviewer(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """The submission has the reporter's words, location and language."""
     post_report(chat_report())
 
     text = ReportSubmission.objects.get().description
     assert "Wires hanging or exposed" in text
     assert "B29 1AA, Outside the Co-op" in text
-    assert "needs confirming" in text
     assert "Reported through the Polish chat." in text
-
-
-def test_existing_issue_type_is_reused(
-    post_report: Callable[[dict[str, Any]], Any],
-) -> None:
-    """Issue types set up in Admin keep their own department."""
-    roads = Department.objects.create(name="Roads")
-    pothole = IssueType.objects.get(code="POTHOLE")
-    pothole.department = roads
-    pothole.save()
-    issue_types = IssueType.objects.count()
-
-    post_report(chat_report(case={"category": "pothole"}))
-
-    assert WorkItem.objects.get().issue_type == pothole
-    assert IssueType.objects.count() == issue_types
+    assert "needs confirming" not in text
 
 
 def test_inactive_issue_type_goes_to_triage_desk(
@@ -187,7 +219,23 @@ def test_inactive_issue_type_goes_to_triage_desk(
 
     post_report(chat_report(case={"category": "pothole"}))
 
-    assert WorkItem.objects.get().issue_type.code == "OTHER"
+    issue = ReportSubmission.objects.get().reported_issue_type
+    assert issue is not None
+    assert issue.code == "OTHER"
+
+
+def test_issue_types_are_never_created_by_a_report(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Reports use configured issue types, which keeps policy snapshots stable."""
+    issue_types = IssueType.objects.count()
+
+    post_report(chat_report(case={"category": "not-a-category"}))
+
+    assert IssueType.objects.count() == issue_types
+    issue = ReportSubmission.objects.get().reported_issue_type
+    assert issue is not None
+    assert issue.code == "OTHER"
 
 
 def test_report_is_refused_when_no_issue_type_is_available(
@@ -199,19 +247,7 @@ def test_report_is_refused_when_no_issue_type_is_available(
     response = post_report(chat_report(case={"category": "pothole"}))
 
     assert response.status_code == 400
-    assert not WorkItem.objects.exists()
     assert not ReportSubmission.objects.exists()
-
-
-def test_unknown_category_goes_to_triage_desk(
-    post_report: Callable[[dict[str, Any]], Any],
-) -> None:
-    """Reports the chat could not categorise go to a person, not a low bucket."""
-    post_report(chat_report(case={"category": "not-a-category"}))
-
-    assert (
-        WorkItem.objects.filter(issue_type__department__name="Triage desk").count() == 1
-    )
 
 
 def test_reporter_saved_when_updates_wanted(
@@ -261,87 +297,139 @@ def test_text_message_contact_maps_to_telephone(
     assert method.code == "TELEPHONE"
 
 
-def test_unknown_postcode_location_is_flagged(
+def test_map_pin_takes_precedence_over_the_postcode(
     post_report: Callable[[dict[str, Any]], Any],
 ) -> None:
-    """Without coordinates the officer is told the map pin is approximate."""
+    """A pin chosen on the map is used without any postcode lookup."""
+    with mock.patch("intake.chat.locate") as lookup:
+        post_report(
+            chat_report(
+                case={
+                    "location": {
+                        "postcode": "B29 1AA",
+                        "latitude": 51.5012,
+                        "longitude": -0.1213,
+                    }
+                }
+            )
+        )
+
+    lookup.assert_not_called()
+    submission = ReportSubmission.objects.get()
+    assert submission.latitude == Decimal("51.501200")
+    assert submission.longitude == Decimal("-0.121300")
+
+
+def test_postcode_is_looked_up_when_there_is_no_pin(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Without a pin the postcode gives an approximate location."""
+    with mock.patch(
+        "intake.chat.locate", return_value=(Decimal("52.1"), Decimal("-1.9"))
+    ):
+        post_report(chat_report())
+
+    assert ReportSubmission.objects.get().latitude == Decimal("52.100000")
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        {"description": "x", "latitude": 95, "longitude": 0},
+        {"description": "x", "latitude": 51, "longitude": None},
+        {"description": "x", "latitude": "nonsense", "longitude": "nonsense"},
+    ],
+)
+def test_invalid_or_partial_pins_are_ignored(
+    post_report: Callable[[dict[str, Any]], Any], location: dict[str, Any]
+) -> None:
+    """A bad pin never saves a half location or fails the whole report."""
+    post_report(chat_report(case={"location": location}))
+
+    submission = ReportSubmission.objects.get()
+    assert submission.latitude is None
+    assert submission.longitude is None
+
+
+def test_unknown_location_is_flagged_not_guessed(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Without coordinates the reviewer is told, and no depot pin is invented."""
     post_report(
         chat_report(
             case={"location": {"postcode": None, "description": "By the roundabout"}}
         )
     )
 
-    assert "Map pin is approximate" in ReportSubmission.objects.get().description
-
-
-def test_confirmed_duplicate_joins_existing_work_item(
-    post_report: Callable[[dict[str, Any]], Any],
-    make_work_item: Callable[..., WorkItem],
-) -> None:
-    """A report the resident confirmed as a duplicate joins the open job."""
-    existing = make_work_item()
-
-    post_report(chat_report(case={"duplicate_of": reference_for(existing)}))
-
-    assert WorkItem.objects.count() == 1
-    assert existing.submissions.count() == 1
-
-
-def test_duplicate_of_closed_work_starts_new_job(
-    post_report: Callable[[dict[str, Any]], Any],
-    make_work_item: Callable[..., WorkItem],
-) -> None:
-    """A closed job is not reopened by a new report."""
-    existing = make_work_item()
-    existing.status = WorkItemStatus.objects.get(code="CLOSED")
-    existing.save()
-
-    post_report(chat_report(case={"duplicate_of": reference_for(existing)}))
-
-    assert WorkItem.objects.count() == 2
-
-
-def test_photo_is_stored(
-    post_report: Callable[[dict[str, Any]], Any],
-    settings: Settings,
-    tmp_path: Path,
-) -> None:
-    """A photo from the chat is saved and linked to the submission."""
-    settings.MEDIA_ROOT = tmp_path
-    post_report(chat_report(case={"photo": f"data:image/png;base64,{PNG_1PX}"}))
-
-    photo = ReportSubmission.objects.get().photos.get()
-    assert photo.image_url.endswith(".png")
-    assert len(list(tmp_path.rglob("*.png"))) == 1
-
-
-def test_report_kept_when_photo_cannot_be_stored(
-    post_report: Callable[[dict[str, Any]], Any],
-) -> None:
-    """A storage failure keeps the report and tells the officer."""
-    with mock.patch(
-        "intake.chat.default_storage.save", side_effect=OSError("read-only")
-    ):
-        response = post_report(
-            chat_report(case={"photo": f"data:image/png;base64,{PNG_1PX}"})
-        )
-
     submission = ReportSubmission.objects.get()
-    assert response.status_code == 201
-    assert not submission.photos.exists()
-    assert "could not be saved" in submission.description
+    assert "No map pin" in submission.description
+    assert submission.latitude is None
 
 
-def test_oversized_photo_is_rejected(
+def test_reporters_duplicate_claim_is_evidence_not_a_link(
+    post_report: Callable[[dict[str, Any]], Any],
+    make_work_item: Callable[..., WorkItem],
+) -> None:
+    """Only a reviewer can link a duplicate; the claim is recorded for them."""
+    existing = make_work_item()
+    earlier = ReportSubmission.objects.create(
+        work_item=existing, updates_requested=False, description="First."
+    )
+
+    post_report(chat_report(case={"duplicate_of": display_reference(earlier)}))
+
+    submission = ReportSubmission.objects.exclude(pk=earlier.pk).get()
+    assert submission.work_item is None
+    claim = TriageAttempt.objects.get(
+        submission=submission, stage=TriageAttempt.Stage.AI
+    ).evidence["reporter_duplicate_claim"]
+    assert claim == {
+        "reference": display_reference(earlier),
+        "confirmed_by_reporter": True,
+        "work_item_id": existing.pk,
+    }
+    assert WorkItem.objects.count() == 1
+
+
+def test_unsure_duplicate_is_recorded_as_unconfirmed(
     post_report: Callable[[dict[str, Any]], Any],
 ) -> None:
-    """Photos over the limit are refused and nothing is saved."""
-    big = base64.b64encode(b"0" * (5 * 1024 * 1024 + 1)).decode()
+    """A "not sure" answer is kept but not treated as a confirmation."""
+    post_report(chat_report(case={"possible_duplicate_of": "ABCD-2345"}))
 
-    response = post_report(chat_report(case={"photo": f"data:image/jpeg;base64,{big}"}))
+    claim = TriageAttempt.objects.get(stage=TriageAttempt.Stage.AI).evidence[
+        "reporter_duplicate_claim"
+    ]
+    assert claim["confirmed_by_reporter"] is False
+    assert claim["work_item_id"] is None
+
+
+def test_photo_reference_is_required_to_be_verified(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """A chat report cannot claim photos that were never reserved and verified."""
+    response = post_report(
+        chat_report(case={"photo_draft": str(uuid4()), "photo_slots": [str(uuid4())]})
+    )
 
     assert response.status_code == 400
-    assert not WorkItem.objects.exists()
+    assert not ReportSubmission.objects.exists()
+
+
+def test_more_than_one_chat_photo_is_rejected(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """The chat accepts a single photo."""
+    response = post_report(
+        chat_report(
+            case={
+                "photo_draft": str(uuid4()),
+                "photo_slots": [str(uuid4()), str(uuid4())],
+            }
+        )
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -360,12 +448,38 @@ def test_unreadable_report_is_rejected(client: Client, body: bytes) -> None:
 def test_report_without_any_location_is_rejected(
     post_report: Callable[[dict[str, Any]], Any],
 ) -> None:
-    """An officer needs at least a postcode or a description."""
+    """A reviewer needs at least a postcode, a description or a pin."""
     response = post_report(
         chat_report(case={"location": {"postcode": None, "description": None}})
     )
 
     assert response.status_code == 400
+
+
+def test_chat_reports_are_limited_per_address(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """An address over the hourly limit gets 429 and saves nothing more."""
+    for _ in range(REPORT_SUBMISSION.limit):
+        assert post_report(chat_report()).status_code == 201
+    response = post_report(chat_report())
+
+    assert response.status_code == 429
+    assert ReportSubmission.objects.count() == REPORT_SUBMISSION.limit
+
+
+def test_chat_and_form_share_one_limit(
+    post_report: Callable[[dict[str, Any]], Any], client: Client
+) -> None:
+    """Switching between the chat and the form does not reset the limit."""
+    with override_settings(INTAKE_PUBLIC_REPORTING_ENABLED=True):
+        for _ in range(REPORT_SUBMISSION.limit):
+            client.post(
+                reverse("intake:submit_report"),
+                {"other_selected": "on", "description": "An issue."},
+            )
+
+        assert post_report(chat_report()).status_code == 429
 
 
 def test_create_report_requires_csrf_token() -> None:
@@ -389,27 +503,70 @@ def test_create_report_requires_csrf_token() -> None:
     assert allowed.status_code == 201
 
 
-def test_report_status_by_reference(
-    client: Client, make_work_item: Callable[..., WorkItem]
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        (ReportSubmission.TriageState.RECEIVED, "Received"),
+        (ReportSubmission.TriageState.NEEDS_REVIEW, "Under review"),
+        (ReportSubmission.TriageState.OUT_OF_SCOPE, "Reviewed"),
+    ],
+)
+def test_report_status_hides_review_decisions(
+    client: Client, state: str, expected: str
 ) -> None:
-    """Anyone with a reference can see its status, but no personal details."""
-    work_item = make_work_item()
+    """Anyone with a reference sees progress, never decisions or personal details."""
+    submission = ReportSubmission.objects.create(
+        updates_requested=False, description="Private words.", triage_state=state
+    )
 
     response = client.get(
-        reverse("intake:report_status", args=[reference_for(work_item)])
+        reverse("intake:report_status", args=[display_reference(submission)])
     )
 
     assert response.status_code == 200
     assert response.json() == {
-        "reference": reference_for(work_item),
-        "status": "Submitted",
-        "issue": "Pothole",
+        "reference": display_reference(submission),
+        "status": expected,
+        "issue": "",
     }
 
 
-def test_report_status_unknown_reference(client: Client) -> None:
-    """Unknown references return 404."""
-    response = client.get(reverse("intake:report_status", args=["SF-99999"]))
+def test_report_status_follows_the_work_once_accepted(
+    client: Client, make_work_item: Callable[..., WorkItem]
+) -> None:
+    """After acceptance the status is the work item's status."""
+    submission = ReportSubmission.objects.create(
+        work_item=make_work_item(),
+        updates_requested=False,
+        description="Words.",
+        triage_state=ReportSubmission.TriageState.ACCEPTED,
+    )
+
+    response = client.get(
+        reverse("intake:report_status", args=[display_reference(submission)])
+    )
+
+    assert response.json()["status"] == "Submitted"
+
+
+@pytest.mark.parametrize("reference", ["SF-99999", "", "ZZZZ-ZZZZ", "A"])
+def test_report_status_unknown_reference(client: Client, reference: str) -> None:
+    """Unknown or malformed references return 404."""
+    response = client.get(reverse("intake:report_status", args=[reference or "x"]))
+
+    assert response.status_code == 404
+
+
+def test_old_sequential_references_no_longer_resolve(
+    client: Client, make_work_item: Callable[..., WorkItem]
+) -> None:
+    """References cannot be guessed by counting from a work item number."""
+    work_item = make_work_item()
+    ReportSubmission.objects.create(
+        work_item=work_item, updates_requested=False, description="Words."
+    )
+
+    response = client.get(reverse("intake:report_status", args=[f"{work_item.pk:05d}"]))
 
     assert response.status_code == 404
 
@@ -453,12 +610,23 @@ def test_nearby_finds_open_job_of_same_type(
 ) -> None:
     """An open pothole about 100 m away is offered as a possible duplicate."""
     existing = make_work_item()  # pothole at 51.5, -0.12
+    reference = reference_of(existing)
 
     with mock.patch("intake.chat.locate", return_value=NEAR_POTHOLE):
         result = nearby(client)
 
-    assert result["match"]["reference"] == reference_for(existing)
+    assert result["match"]["reference"] == reference
     assert result["match"]["days_ago"] == 0
+
+
+def test_nearby_ignores_jobs_with_no_public_report(
+    client: Client, make_work_item: Callable[..., WorkItem]
+) -> None:
+    """Work with no report behind it has no reference to offer the chat."""
+    make_work_item()
+
+    with mock.patch("intake.chat.locate", return_value=NEAR_POTHOLE):
+        assert nearby(client) == {"match": None}
 
 
 def test_nearby_ignores_far_away_jobs(

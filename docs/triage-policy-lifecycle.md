@@ -117,11 +117,27 @@ provide them.
 The staff review queue should use the deployment's defined theme tokens and
 existing interface components wherever appropriate.
 
-## Public form, maps and photos
+## Public chat, form, maps and photos
 
-The public form is off until a deployment sets the environment variable
-`INTAKE_PUBLIC_REPORTING_ENABLED` to `true`.
-The chat links to it, and it links back to the chat. Before enabling it:
+The report chat and the report form submit through the same service. Neither
+creates work: each saves a report, records the reporter's evidence, and sends it
+to central review. The chat's category and priority are only a suggestion made
+in the browser; they are stored as an AI-stage triage attempt for the reviewer,
+and a reporter's claim that a report duplicates earlier work is stored as
+evidence. Only a reviewer links duplicates. The chat accepts a single photo.
+
+Every report gets a random reference code that does not reveal how many reports
+exist. `INTAKE_REFERENCE_PREFIX` optionally puts a deployment-specific prefix in
+front of it. Anyone with a reference can see its progress (received, under
+review, or the work's status once accepted), never review decisions or personal
+details.
+
+The chat and the rate limits are always on. The form, and photo upload for both,
+stay off until a deployment sets the environment variable
+`INTAKE_PUBLIC_REPORTING_ENABLED` to `true`. The chat and form link to each
+other. Rate limits need a trusted client address, so production settings require
+`INTAKE_CLIENT_IP_HEADER`: without it every visitor behind a proxy would share
+one limit. Before enabling these features:
 
 - Set `INTAKE_CLIENT_IP_HEADER` to a WSGI `META` key (for example
   `HTTP_X_REAL_IP`) that the hosting edge sets itself and clients cannot forge.

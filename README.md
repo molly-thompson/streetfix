@@ -20,10 +20,11 @@ site branding and theme settings.
   related lookup values. Migrations create the initial fixed lookup values.
 - **Django Admin:** Manage the available data and theme settings at `/admin/`.
   Some lookup codes and history records are intentionally read-only.
-- **Public report form (off by default):** An accessible alternative to the
-  chat with optional map pin and photos. It saves a report for central staff
-  review, never straight into work. See `docs/triage-policy-lifecycle.md`
-  before enabling it.
+- **Public reporting:** The chat and an accessible report form (off by default)
+  share one submission flow, optional map pin and optional signed photo
+  uploads. Every report is saved for central staff review, never straight into
+  work, and gets a random reference code (with an optional deployment prefix).
+  See `docs/triage-policy-lifecycle.md` before enabling the form or photos.
 - **Static assets:** UIkit and the site theme are served from the project's
   static files; the pinned Leaflet distribution is also bundled locally for the
   optional report map. WhiteNoise supports serving collected static files in
@@ -114,14 +115,14 @@ Development settings provide local `ALLOWED_HOSTS` and
 
 | Path | Area | Current status |
 | --- | --- | --- |
-| `/` | Public intake | Guided report chat in six languages (the home page); creates a submitted work item. Signed-in staff also see the triage panel. |
+| `/` | Public intake | Guided report chat in six languages (the home page); saves a report for staff review. Signed-in staff also see the chat's suggestion panel. |
 | `/report/` | Public intake | Redirects to `/` for older links. |
 | `/report/form/` | Public intake | Accessible report form; returns 404 unless `INTAKE_PUBLIC_REPORTING_ENABLED` is set. |
 | `/report/photos/` | Public API | `POST` to reserve a signed photo upload (rate limited; same gate as the form). |
 | `/review/` | Staff | Central review queue for reports; needs the review permission. |
-| `/api/cases/` | Public API | `POST` a report from the chat; returns its `SF-00000` reference. |
+| `/api/cases/` | Public API | `POST` a report from the chat (rate limited); it waits for staff review and returns a random reference code. |
 | `/api/cases/nearby/` | Public API | `GET ?category=&postcode=` returns an open job of the same type within 200 m from the last 30 days, if any. |
-| `/api/cases/<reference>/` | Public API | `GET` a report's status by reference, without personal details. |
+| `/api/cases/<reference>/` | Public API | `GET` a report's progress by reference (received, under review, or its work status), without personal details or review decisions. |
 | `/employees/` | Employee workspace | Dashboard scaffold. |
 | `/analytics/` | Analytics | Overview scaffold. |
 | `/admin/` | Django Admin | Data and site-settings administration. |
