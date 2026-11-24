@@ -5,6 +5,7 @@ import re
 from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 from uuid import uuid4
@@ -104,6 +105,69 @@ def test_report_chat_shows_the_site_navbar(client: Client) -> None:
     assert "uk-logo" in content
     assert '<a href="/employees/">Employees</a>' in content
     assert '<a href="/analytics/">Analytics</a>' not in content
+
+
+def chat_config(client: Client) -> dict[str, Any]:
+    """Return the options the page hands to the chat script."""
+    content = client.get(reverse("intake:form_intake")).content.decode()
+    match = re.search(
+        r'<script id="chat-config" type="application/json">(.*?)</script>', content
+    )
+    assert match
+    return json.loads(match.group(1))  # type: ignore[no-any-return]
+
+
+def test_chat_offers_neither_map_nor_photos_by_default(client: Client) -> None:
+    """Optional features stay off until a deployment configures them."""
+    config = chat_config(client)
+
+    assert config["map"] is None
+    assert config["photos"] is False
+    assert "vendor/leaflet" not in client.get("/").content.decode()
+
+
+@override_settings(
+    INTAKE_MAP={
+        "tile_url": "https://maps.example.test/{z}/{x}/{y}.png",
+        "attribution": "Maps <b>",
+        "latitude": "51",
+        "longitude": "-1",
+        "zoom": "13",
+    }
+)
+def test_chat_offers_the_configured_map(client: Client) -> None:
+    """The chat uses the same map settings and marker icons as the form."""
+    config = chat_config(client)
+    content = client.get("/").content.decode()
+
+    assert config["map"]["tile_url"] == "https://maps.example.test/{z}/{x}/{y}.png"
+    assert config["map"]["attribution"] == "Maps <b>"
+    assert re.search(
+        r"marker-icon(\.[0-9a-f]+)?\.png", config["map"]["icons"]["marker-icon"]
+    )
+    assert re.search(r"vendor/leaflet/leaflet(\.[0-9a-f]+)?\.js", content)
+    assert re.search(r"js/report-map(\.[0-9a-f]+)?\.js", content)
+
+
+@override_settings(
+    INTAKE_PUBLIC_REPORTING_ENABLED=True, INTAKE_PHOTO_UPLOAD_PRESET="report-photos"
+)
+def test_chat_offers_photos_only_when_uploads_are_configured(client: Client) -> None:
+    """Photos need the reporting gate, a preset and provider credentials."""
+    config_with = SimpleNamespace(cloud_name="demo", api_key="k", api_secret="s")  # noqa: S106
+    with mock.patch(
+        "intake.services.photo_upload.cloudinary.config", return_value=config_with
+    ):
+        enabled = chat_config(client)
+    with mock.patch(
+        "intake.services.photo_upload.cloudinary.config",
+        return_value=SimpleNamespace(cloud_name="", api_key="", api_secret=""),  # noqa: S106
+    ):
+        unconfigured = chat_config(client)
+
+    assert enabled["photos"] is True
+    assert enabled["photoAuthorizeUrl"] == reverse("intake:photo_authorize")
+    assert unconfigured["photos"] is False
 
 
 def test_staff_panel_hidden_from_public(client: Client) -> None:

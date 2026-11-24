@@ -1,11 +1,15 @@
-/* Street Fix report chat: guided public reporting with rules-based triage.
-   Posts each report to /api/cases/ (intake.views.create_report). */
+/* Public report chat: guided reporting with a rules-based first suggestion.
+   Posts each report to /api/cases/ (intake.views.CreateReportView), where it waits for a person to review it. */
 (function(){
 /* BACKEND CONNECTION
-   window.STREETFIX_API not set -> demo mode: nothing is sent, the reference is made up in the browser.
-   window.STREETFIX_API = ""    -> page is served by the backend (e.g. Django): POSTs to /api/cases/
-   window.STREETFIX_API = "http://localhost:8000" -> backend on another address (needs CORS on the backend) */
-const API_BASE=(typeof window.STREETFIX_API==="string")?window.STREETFIX_API.replace(/\/$/,""):null;
+   window.REPORT_CHAT_API not set -> demo mode: nothing is sent, the reference is made up in the browser.
+   window.REPORT_CHAT_API = ""    -> page is served by the backend (e.g. Django): POSTs to /api/cases/
+   window.REPORT_CHAT_API = "http://localhost:8000" -> backend on another address (needs CORS on the backend) */
+const API_BASE=(typeof window.REPORT_CHAT_API==="string")?window.REPORT_CHAT_API.replace(/\/$/,""):null;
+/* Deployment options from the server: whether photos and a location map are offered, and their URLs. */
+/* The deployment's own name, so the assistant introduces itself as that site. */
+const SITE=(typeof window.REPORT_CHAT_SITE==="string"&&window.REPORT_CHAT_SITE)||"report";
+const CONFIG=(()=>{const e=document.getElementById("chat-config");return e?JSON.parse(e.textContent):{}})();
 function getCookie(n){const m=document.cookie.match(new RegExp("(?:^|; )"+n+"=([^;]*)"));return m?decodeURIComponent(m[1]):null}
 /* Categories, sub-issues and urgency hold translation keys; data sent to the backend is always English. */
 const CATS={
@@ -44,28 +48,28 @@ const SLA={Urgent:{ackH:1,resD:1},High:{ackH:4,resD:3},Medium:{ackD:1,resD:10},L
 const URG=[{id:"Urgent",k:"u_Urgent",h:"uh_Urgent"},{id:"High",k:"u_High",h:"uh_High"},{id:"Medium",k:"u_Medium"},{id:"Low",k:"u_Low"},{id:null,k:"u_unsure"}];
 const METHODS=[["Email","m_email"],["Text message","m_text"],["Phone call","m_call"]];
 const EXISTING=[
-  {ref:"SF-2026-0412",cat:"pothole",out:"B15",days:2,note:"Deep pothole by the bus stop"},
-  {ref:"SF-2026-0418",cat:"flytip",out:"B11",days:1,note:"Mattress and bin bags dumped in an alley"},
-  {ref:"SF-2026-0405",cat:"light",out:"B29",days:4,note:"Two streetlights out on a residential street"}
+  {ref:"DEMO-0412",cat:"pothole",out:"B15",days:2,note:"Deep pothole by the bus stop"},
+  {ref:"DEMO-0418",cat:"flytip",out:"B11",days:1,note:"Mattress and bin bags dumped in an alley"},
+  {ref:"DEMO-0405",cat:"light",out:"B29",days:4,note:"Two streetlights out on a residential street"}
 ];
 const LANGS=[["English","en","English"],["Polski","pl","Polish"],["اردو (Urdu)","ur","Urdu"],["ਪੰਜਾਬੀ (Punjabi)","pa","Punjabi"],["العربية (Arabic)","ar","Arabic"],["Română","ro","Romanian"]];
 const LOCALE={en:"en-GB",pl:"pl-PL",ur:"ur-PK",pa:"pa-IN",ar:"ar-u-nu-latn",ro:"ro-RO"};
 const RTL=["ur","ar"];
-const STAGE_OF={welcome:0,language:0,intro:0,category:0,otherText:0,awaitConfirm:0,subissue:0,description:0,postcode:1,landmark:1,photo:2,urgency:3,dup:3,
+const STAGE_OF={welcome:0,language:0,intro:0,category:0,otherText:0,awaitConfirm:0,subissue:0,description:0,postcode:1,landmark:1,map:1,photo:2,urgency:3,dup:3,
   updates:4,method:4,email:4,phone:4,name:4,review:5,editMenu:5,refAsk:6,done:6};
 
 let lang="en";
-function t(k,v){let s=(L[lang]&&L[lang][k])||L.en[k]||k;if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s}
-const en=k=>L.en[k];
+function t(k,v){let s=(CHAT_TEXT[lang]&&CHAT_TEXT[lang][k])||CHAT_TEXT.en[k]||k;if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s}
+const en=k=>CHAT_TEXT.en[k];
 
 const $=s=>document.querySelector(s);
 const log=$("#log"),msg=$("#msg"),err=$("#err"),photoBtn=$("#photoBtn"),fileInput=$("#fileInput"),chat=$(".chat");
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-let C,current,editing,reference;
+let C,current,editing,reference,mapCount=0;
 function fresh(){C={category:null,categorySource:null,subKey:null,subissue:"",subRaise:null,otherText:"",description:"",postcode:"",outward:"",postcodeKnown:null,landmark:"",
-  photo:null,photoName:"",urgency:undefined,wantsUpdates:null,contactMethod:"",email:"",phone:"",name:"",language:"",languageLabel:"",
+  photo:null,photoName:"",photoDraft:null,photoSlot:null,lat:null,lng:null,urgency:undefined,wantsUpdates:null,contactMethod:"",email:"",phone:"",name:"",language:"",languageLabel:"",
   duplicateOf:null,possibleDuplicate:null,nearby:null,wantsReference:null,submittedAt:null};editing=false;reference=null;lang="en";applyLang();}
 
 function scroll(){log.scrollTop=log.scrollHeight}
@@ -145,7 +149,7 @@ const steps={
   intro(){
     if(lang!=="en")bot(note(t("ai_trans")));
     else if(C.language&&C.language!=="English")bot(note(`This chat will continue in English. We'll try to send your updates in ${C.language}.`));
-    bot(p(t("hi")));
+    bot(p(t("hi",{site:SITE})));
     bot(p(t("auto"))+`<div class="uk-alert uk-alert-danger uk-margin-small-top uk-margin-remove-bottom" role="note">${esc(t("emerg"))}</div>`);
     go("category");
   },
@@ -171,10 +175,24 @@ const steps={
   },
   landmark(){
     if(C.postcodeKnown===false){setInput("ph_lm_req",{type:"street-address"});bot(p(t("q_lm_req"))+note(t("lm_eg")))}
-    else{setInput("ph_lm_opt",{type:"street-address"});bot(p(t("q_lm_opt")),{chips:[skip("skip","photo")]})}
+    else{setInput("ph_lm_opt",{type:"street-address"});bot(p(t("q_lm_opt")),{chips:[skip("skip","map")]})}
+  },
+  /* 2b. Map pin: optional, and only offered when the deployment has configured a map */
+  map(){
+    if(!CONFIG.map||!window.createReportMap){next("photo");return}
+    setInput("ph_choose");
+    const id="chat-map-"+(++mapCount),status=()=>document.getElementById(id+"-status");
+    bot(p(t("q_map"))+`<div id="${id}" class="report-map" role="group" aria-label="${esc(t("map_label"))}"></div><p class="uk-text-meta" id="${id}-status" role="status" aria-live="polite">${esc(t("map_hint"))}</p>`+note(t("map_privacy"))+note(CONFIG.map.attribution),{chips:[
+      {label:t("map_use"),cls:"primary",keep:true,on:()=>{if(C.lat===null){status().textContent=t("map_need_pin");return}
+        user(t("map_use"));clearChips();next("photo")}},
+      skip("skip","photo")]}).then(()=>{
+      const handle=window.createReportMap({element:document.getElementById(id),config:CONFIG.map,
+        onSelect:(lat,lng)=>{C.lat=lat;C.lng=lng;status().textContent=t("map_pin_set");render()}});
+      if(handle){handle.map.invalidateSize();if(C.lat!==null)handle.setPoint(C.lat,C.lng,false)}});
   },
   /* 3. Photo */
   photo(){
+    if(!CONFIG.photos){next("urgency");return}
     setInput("ph_photo",{photo:true});
     bot(p(t("q_photo")),{chips:[{label:t("add_photo"),cls:"primary",keep:true,on:()=>fileInput.click()},skip("skip","urgency")]});
   },
@@ -212,7 +230,7 @@ const steps={
     editing=false;setInput("ph_choose");
     const m=METHODS.find(x=>x[0]===C.contactMethod);
     const rows=[["r_problem",t(CATS[C.category].key)+(C.otherText?` (“${C.otherText}”)`:"")],["r_what",subText()],["r_details",C.description],
-      ["r_where",[C.postcode,C.landmark].filter(Boolean).join(", ")||t("not_given")],["r_photo",C.photo?t("added"):t("none")],["r_urg",urgLabel(C.urgency??null)],
+      ["r_where",[C.postcode,C.landmark].filter(Boolean).join(", ")||t("not_given")],["r_map",C.lat===null?"":t("r_map_set")],["r_photo",C.photo?t("added"):t("none")],["r_urg",urgLabel(C.urgency??null)],
       ["r_upd",C.wantsUpdates?`${t(m[1])}: ${C.email||C.phone}`:t("no_updates")],["r_name",C.name],["r_lang",C.languageLabel]];
     bot(p(t("review_intro"))+`<dl class="uk-description-list rc-summary">${rows.filter(r=>r[1]).map(([k,v])=>`<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`+note(t(C.wantsUpdates?"consent_yes":"consent_no")),
       {chips:[{label:t("send_report"),cls:"primary",on:submit},{label:t("change"),cls:"quiet",on:()=>{user(t("change"));go("editMenu")}}]});
@@ -221,7 +239,7 @@ const steps={
     setInput("ph_edit");
     const f=[["r_lang","language"],["r_problem","category"],["r_details","description"],["st1","postcode"],["r_photo","photo"],["r_urg","urgency"],["e_upd","updates"]];
     bot(p(t("q_change")),{chips:f.map(([k,s])=>({label:t(k),on:()=>{user(t(k));editing=true;
-      if(s==="photo")C.photo=null;if(s==="category"){C.subKey=null;C.subissue="";C.subRaise=null;C.otherText=""}
+      if(s==="photo"){C.photo=null;C.photoDraft=null;C.photoSlot=null}if(s==="category"){C.subKey=null;C.subissue="";C.subRaise=null;C.otherText=""}
       if(s==="postcode"){C.landmark="";C.duplicateOf=null;C.possibleDuplicate=null}go(s)}}))
       .concat([skip("e_back","review")])});
   },
@@ -249,7 +267,7 @@ const steps={
 function setCat(k,src){C.category=k;C.categorySource=src}
 function setLang(code,name,label){lang=code;C.language=name;C.languageLabel=label;applyLang();go(editing?"review":"intro")}
 function go(id){current=id;render();steps[id]()}
-const FLOW_INTERNAL=["otherText","subissue","landmark","dup","method","email","phone","name"];
+const FLOW_INTERNAL=["otherText","subissue","landmark","map","dup","method","email","phone","name"];
 function next(id){if(!editing||FLOW_INTERNAL.includes(id))go(id);else go("review")}
 
 /* ---------- typed answers ---------- */
@@ -261,7 +279,7 @@ const validators={
   phone(v){const d=v.replace(/[\s()-]/g,"");if(!/^(?:\+44|0)\d{9,10}$/.test(d))return "err_phone";C.phone=v},
   landmark(v){if(v.length<4)return "err_lm";C.landmark=v.slice(0,200)}
 };
-const AFTER={postcode:"landmark",landmark:"photo",email:"name",phone:"name",name:"review"};
+const AFTER={postcode:"landmark",landmark:"map",email:"name",phone:"name",name:"review"};
 function onText(v){
   err.textContent="";
   switch(current){
@@ -303,25 +321,45 @@ function shrinkPhoto(file,maxSide=1600,maxBytes=1200000){
     img.src=url;
   });
 }
+const ZERO_ID="00000000-0000-0000-0000-000000000000";
+const post=(url,data)=>fetch(API_BASE+url,{method:"POST",credentials:"same-origin",
+  headers:{"Content-Type":"application/json","X-CSRFToken":getCookie("csrftoken")||""},body:JSON.stringify(data||{})});
+/* The server reserves the photo's ID and signs the upload; the browser sends the file straight to the
+   provider, then the server checks that it arrived before the report may use it. */
+async function uploadPhoto(blob){
+  const reserve=await post(CONFIG.photoAuthorizeUrl,{draft:C.photoDraft});
+  if(!reserve.ok)throw new Error("reserve "+reserve.status);
+  const grant=await reserve.json(),body=new FormData();
+  for(const [k,v] of Object.entries(grant.fields))body.append(k,v);
+  body.append("file",blob,"photo.jpg");
+  if(!(await fetch(grant.upload_url,{method:"POST",body})).ok)throw new Error("upload");
+  const verified=await post(CONFIG.photoVerifyUrl.replace(ZERO_ID,grant.draft).replace(ZERO_ID,grant.slot));
+  if(!verified.ok)throw new Error("verify "+verified.status);
+  C.photoDraft=grant.draft;C.photoSlot=grant.slot;
+}
 fileInput.addEventListener("change",async()=>{
   const f=fileInput.files[0];fileInput.value="";if(!f)return;
   if(!f.type.startsWith("image/")){err.textContent=t("err_file");return}
   if(f.size>40*1024*1024){err.textContent=t("err_big");return}
   let data;try{data=await shrinkPhoto(f)}catch(e){err.textContent=t("err_file");return}
+  if(API_BASE!==null){
+    try{await uploadPhoto(await (await fetch(data)).blob())}
+    catch(e){console.error("Photo upload failed",e);err.textContent=t("err_upload");return}
+  }
   C.photo=data;C.photoName=f.name;clearChips();
   user("",`<img src="${data}" alt="">`);bot(p(t("thanks_photo")));next("urgency");
 });
 
 async function submit(){
   user(t("send_report"));C.submittedAt=new Date().toISOString();
-  if(API_BASE===null){reference="SF-2026-"+String(Math.floor(1000+Math.random()*8999));go("refAsk");return}
-  const body=payload(triage());body.case.photo=C.photo||null;body.case.status="New – awaiting triage";
+  if(API_BASE===null){reference=Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>"ABCDEFGHJKMNPQRSTUVWXYZ23456789"[b%31]).join("").replace(/^(.{4})/,"$1-");go("refAsk");return}
+  const body=payload(triage());body.case.status="New – awaiting triage";
   try{
-    const r=await fetch(API_BASE+"/api/cases/",{method:"POST",credentials:"same-origin",
-      headers:{"Content-Type":"application/json","X-CSRFToken":getCookie("csrftoken")||""},body:JSON.stringify(body)});
+    const r=await post("/api/cases/",body);
+    if(r.status===429){C.submittedAt=null;bot(p(t("err_limit")));go("review");return}
     if(!r.ok)throw new Error("HTTP "+r.status);
     reference=(await r.json()).reference;go("refAsk");
-  }catch(e){console.error("Street Fix: sending failed",e);C.submittedAt=null;bot(p(t("err_send")));go("review")}
+  }catch(e){console.error("Sending the report failed",e);C.submittedAt=null;bot(p(t("err_send")));go("review")}
 }
 
 /* ---------- staff side panel (always English) ---------- */
@@ -356,10 +394,10 @@ function payload(tr){
     description:[C.otherText,C.description].filter(Boolean).join(" | ")||null,chat_language:C.language||null,
     priority_suggested:tr?tr.priority:null,priority_reasons:tr?tr.reasons:[],priority_confirmed:null,reporter_urgency:C.urgency??null,
     status:reference?"New – awaiting triage":"Draft",
-    location:{postcode:C.postcode||null,postcode_known:C.postcodeKnown,description:C.landmark||null,latitude:null,longitude:null},
+    location:{postcode:C.postcode||null,postcode_known:C.postcodeKnown,description:C.landmark||null,latitude:C.lat,longitude:C.lng},
     date_reported:C.submittedAt,assigned_team:tr?en(tr.teamKey):null,assigned_officer:null,
     sla_ack_due:tr&&reference?tr.ackDue.toISOString():null,sla_resolve_due:tr&&reference?tr.resolveDue.toISOString():null,
-    duplicate_of:C.duplicateOf,possible_duplicate_of:C.possibleDuplicate,has_photo:!!C.photo,
+    duplicate_of:C.duplicateOf,possible_duplicate_of:C.possibleDuplicate,has_photo:!!C.photo,photo_draft:C.photoDraft,photo_slots:C.photoSlot?[C.photoSlot]:[],
     ai_used:(C.categorySource&&C.categorySource.startsWith("AI")?["category_suggestion"]:[]).concat(["priority_suggestion"],lang!=="en"?["chat_translation"]:[])},
     reporter:C.wantsUpdates?{name:C.name||null,email:C.email||null,phone:C.phone||null,preferred_contact:C.contactMethod,preferred_language:C.language||null,wants_updates:true}
       :{wants_updates:C.wantsUpdates,preferred_language:C.language||null}};

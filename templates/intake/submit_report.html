@@ -121,6 +121,7 @@
   {% if map_config %}
     {{ map_config|json_script:"report-map-config" }}
     <script defer src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+    <script defer src="{% static 'js/report-map.js' %}"></script>
     <script defer src="{% static 'js/intake-map.js' %}"></script>
   {% endif %}
 {% endblock extra_js %}
