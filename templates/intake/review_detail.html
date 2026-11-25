@@ -119,6 +119,83 @@
       <button class="uk-button uk-button-primary" type="submit">Save location</button>
     </form>
   {% endif %}
+  <section class="uk-margin-large-top">
+    <h2>Decision support</h2>
+    <p>Suggestions are not decisions. Confirm the evidence and use your own judgement.</p>
+    {% if engine_mode == "shadow" %}
+      <p>Shadow mode: results are recorded for evaluation and are not shown here.</p>
+    {% elif engine_mode != "review" %}
+      <p>Decision support is disabled for this deployment.</p>
+    {% endif %}
+    {% if engine_job %}
+      <p>Latest assessment: {{ engine_job.get_status_display }}.</p>
+      {% if engine_job.status == "FAILED" %}<p>{{ engine_job.error }}</p>{% endif %}
+    {% endif %}
+    {% if submission.triage_state == "NEEDS_REVIEW" and engine_mode == "review" or submission.triage_state == "NEEDS_REVIEW" and engine_mode == "shadow" %}
+      <form
+        action="{% url 'intake:request_engine_assessment' submission.pk %}"
+        method="post"
+      >
+        {% csrf_token %}
+        <button class="uk-button uk-button-default" type="submit">Request assessment</button>
+      </form>
+    {% endif %}
+    {% if engine_result_job %}
+      {% with result=engine_result_job.result %}
+        <h3>Assessment: {{ result.status }}</h3>
+        <p>Engine profile {{ engine_result_job.profile }}; policy version {{ engine_result_job.policy_version }}.</p>
+        <dl class="uk-description-list">
+          <dt>Suggested category</dt>
+          <dd>
+            {{ result.category_recommendation.primary_category_name|default:"Not determined" }}
+          </dd>
+          <dt>Suggested engine priority</dt>
+          <dd>
+            {{ result.priority_recommendation.priority_name|default:"Not determined" }}. {{ result.priority_recommendation.rationale }}
+          </dd>
+          <dt>Suggested team</dt>
+          <dd>
+            {{ result.routing_recommendation.team_name|default:"Not determined" }}. {{ result.routing_recommendation.rationale }}
+          </dd>
+        </dl>
+        <p>Engine priorities are not confirmed priority or urgency decisions.</p>
+        {% if result.safety_assessment.escalation_triggered %}
+          <h3>Safety alerts</h3>
+          <p>These are prompts for human review, not an emergency response.</p>
+          <ul>
+            {% for hazard in result.safety_assessment.matched_hazards %}
+              <li>{{ hazard.label }}: {{ hazard.matched_text }}</li>
+            {% endfor %}
+          </ul>
+          {% for action in result.safety_assessment.recommended_immediate_actions %}
+            <p>Suggested action: {{ action }}</p>
+          {% endfor %}
+        {% endif %}
+        {% for warning in result.safety_assessment.safety_warnings %}
+          <p>Safety warning: {{ warning }}</p>
+        {% endfor %}
+        <h3>Evidence and uncertainty</h3>
+        <p>{{ result.evidence_and_reasoning.reasoning_summary }}</p>
+        <p>{{ result.uncertainty_assessment.decision_uncertainty.explanation }}</p>
+        <ul>
+          {% for excerpt in result.evidence_and_reasoning.evidence_excerpts %}
+            <li>{{ excerpt.quote }} {% if excerpt.verified_in_source %}(matched to input){% else %}(not verified){% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% for inference in result.evidence_and_reasoning.inferred_conclusions %}
+          <p>Inference: {{ inference.conclusion }}. {{ inference.uncertainty_note }}</p>
+        {% endfor %}
+        {% for flag in result.evidence_and_reasoning.unsupported_or_contradictory_flags %}
+          <p>Evidence warning: {{ flag }}</p>
+        {% endfor %}
+        {% for item in result.missing_information %}
+          <p>Missing information: {{ item.question }}</p>
+        {% endfor %}
+      {% endwith %}
+    {% elif engine_job.status == "COMPLETED" and engine_mode == "review" %}
+      <p>This result is unavailable because it is a shadow assessment or its report or policy context changed.</p>
+    {% endif %}
+  </section>
   <h2>Contact</h2>
   {% if submission.reporter %}
     <dl class="uk-description-list">

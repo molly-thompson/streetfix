@@ -1,10 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Review reports · {{ site_name }}{% endblock title %}
+{% block title %}Triage dashboard · {{ site_name }}{% endblock title %}
 
 {% block content %}
-  <h1>Review reports</h1>
-  <p>Urgent reports appear first. Reports awaiting processing are also shown.</p>
+  <h1>Triage dashboard</h1>
+  <p>Review incoming reports and make the final decision. Urgent reports appear first.</p>
+  <div class="uk-grid-small uk-child-width-1-3@s uk-margin-medium" uk-grid>
+    <div>
+      <strong>{{ queue_totals.total }}</strong>
+      <br>
+      Reports in the queue
+    </div>
+    <div>
+      <strong>{{ queue_totals.urgent }}</strong>
+      <br>
+      Flagged for urgent review
+    </div>
+    <div>
+      <strong>{{ queue_totals.processing }}</strong>
+      <br>
+      Awaiting rules processing
+    </div>
+  </div>
+  {% if engine_mode == "shadow" %}
+    <p>Decision support is in shadow mode. Assessments are not shown to reviewers.</p>
+  {% elif engine_mode == "review" %}
+    <p>Decision support is available on reports awaiting review. Suggestions never replace your decision.</p>
+  {% else %}
+    <p>Decision support is disabled. Reports remain available for human review.</p>
+  {% endif %}
   <p><a href="{% url 'intake:finalized_reports' %}">Review rejected or duplicate reports</a></p>
   {% if submissions %}
     <div class="uk-overflow-auto">
@@ -16,6 +40,7 @@
             <th scope="col">Issue</th>
             <th scope="col">Received</th>
             <th scope="col">Status</th>
+            <th scope="col">Assessment</th>
           </tr>
         </thead>
         <tbody>
@@ -28,6 +53,13 @@
               <td>{{ submission.reported_issue_type|default:"Not specified" }}</td>
               <td>{{ submission.submitted_at }}</td>
               <td>{{ submission.get_triage_state_display }}</td>
+              <td>
+                {% if submission.engine_job_status == "PENDING" %}Queued
+                {% elif submission.engine_job_status == "PROCESSING" %}Processing
+                {% elif submission.engine_job_status == "COMPLETED" %}Completed
+                {% elif submission.engine_job_status == "FAILED" %}Failed
+          {% else %}Not requested{% endif %}
+            </td>
             </tr>
           {% endfor %}
         </tbody>

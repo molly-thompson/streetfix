@@ -47,6 +47,9 @@
         <div class="uk-navbar-right">
           <ul class="uk-navbar-nav">
             <li><a href="{% url 'intake:form_intake' %}">Report a problem</a></li>
+            {% if perms.intake.review_reportsubmission %}
+              <li><a href="{% url 'intake:review_queue' %}">Triage</a></li>
+            {% endif %}
             <li><a href="{% url 'employees:dashboard' %}">Employees</a></li>
           </ul>
         </div>

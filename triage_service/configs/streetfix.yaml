@@ -1,0 +1,170 @@
+profile_id: streetfix
+organisation_name: "StreetFix Municipal Public Realm"
+domain_description: >-
+  Local authority public-realm and highway infrastructure reporting service handling
+  roads, pavements, street lighting, fly-tipping, graffiti, signage, and drainage.
+
+ai_settings:
+  provider: gemini
+  model_name: gemini-4-hydrogen
+  permitted_models:
+    - gemini-4-hydrogen
+    - gemini-4-neon
+    - gemini-3.1-flash-lite
+  thinking_level: low
+  timeout_seconds: 25.0
+
+categories:
+  - id: potholes_roads
+    name: "Potholes & Damaged Carriageway"
+    description: "Carriageway potholes, sunken ironwork, cracked tarmac, or road surface defects."
+    examples: ["Deep pothole at junction", "Cracked road surface", "Collapsed kerb"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: fly_tipping
+    name: "Fly-Tipping & Illegal Dumping"
+    description: "Dumped waste, mattresses, tyres, rubble, or overflowing illegal waste on public land."
+    examples: ["Dumped sofas in alleyway", "Commercial waste bags on verge"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: street_lighting
+    name: "Street Lighting & Public Electrical"
+    description: "Broken streetlights, flickering columns, exposed lamp wiring, or unlit pedestrian crossings."
+    examples: ["Streetlamp out on lane", "Exposed door panel wiring on lamppost"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: graffiti_vandalism
+    name: "Graffiti & Public Vandalism"
+    description: "Graffiti on public property, smashed bus shelters, or damaged street furniture."
+    examples: ["Offensive graffiti on underpass wall", "Smashed bench"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: damaged_signage
+    name: "Damaged or Missing Signage"
+    description: "Twisted, obscured, knocked-down, or missing road/pedestrian safety signs."
+    examples: ["Missing give way sign", "Faded pedestrian crossing sign"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: drainage_flooding
+    name: "Drainage, Gullies & Surface Flooding"
+    description: "Blocked road gullies, standing surface water, overflowing drains, or culvert blockages."
+    examples: ["Blocked storm drain flooding pavement", "Overflowing highway gully"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: trees_public_realm
+    name: "Trees, Hedges & General Public Realm"
+    description: "Fallen branches, overgrown vegetation obstructing footpaths, or general public-space hazards."
+    examples: ["Fallen branch blocking footpath", "Overgrown hedge hiding sightlines"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: building_internal_adjacent
+    name: "Council Building / Civic Facility Maintenance"
+    description: "Internal structural, water ingress, or electrical defects inside council-operated public buildings or depots."
+    examples: ["Water leaking through civic centre ceiling", "Socket fault in public library"]
+    requires_location: true
+    always_require_human_review: true
+
+priorities:
+  - id: P1
+    name: "Emergency"
+    rank: 1
+    description: "Immediate life-safety hazard, active electrical/gas/collapse threat, or critical arterial blockage."
+    response_target: "Attend within 2 hours"
+  - id: P2
+    name: "Urgent"
+    rank: 2
+    description: "Significant safety risk or severe disruption requiring rapid temporary make-safe or repair."
+    response_target: "Attend within 24 hours"
+  - id: P3
+    name: "Standard"
+    rank: 3
+    description: "Confirmed public-realm defect causing moderate inconvenience without immediate safety hazard."
+    response_target: "Schedule within 5 working days"
+  - id: P4
+    name: "Routine"
+    rank: 4
+    description: "Minor cosmetic or low-impact maintenance issue suitable for planned rounds."
+    response_target: "Schedule within 20 working days"
+
+teams:
+  - id: highways_maintenance
+    name: "Highways & Carriageway Maintenance"
+    responsibilities: "Road defects, potholes, signage, drainage gullies, and carriageway safety."
+  - id: street_cleansing
+    name: "Street Cleansing & Environmental Waste"
+    responsibilities: "Fly-tipping clearance, hazardous litter/sharps removal, and graffiti remediation."
+  - id: street_lighting_elec
+    name: "Street Lighting & Highway Electrical"
+    responsibilities: "Public lighting columns, illuminated bollards, traffic electrical assets, and civic electrical make-safe."
+  - id: parks_public_realm
+    name: "Parks, Arboriculture & Public Realm"
+    responsibilities: "Street trees, hedges, benches, footpaths, and green-space hazards."
+  - id: civic_assets_team
+    name: "Civic Buildings & Public Assets Team"
+    responsibilities: "Council-owned civic buildings, libraries, public toilets, and community centres."
+  - id: triage_duty_desk
+    name: "Central StreetFix Triage Duty Desk"
+    responsibilities: "Manual assessment of ambiguous, multi-category, or out-of-scope public reports."
+    is_triage_fallback: true
+
+routing_rules:
+  - category_id: potholes_roads
+    team_id: highways_maintenance
+  - category_id: drainage_flooding
+    team_id: highways_maintenance
+  - category_id: damaged_signage
+    team_id: highways_maintenance
+  - category_id: fly_tipping
+    team_id: street_cleansing
+  - category_id: graffiti_vandalism
+    team_id: street_cleansing
+  - category_id: street_lighting
+    team_id: street_lighting_elec
+  - category_id: trees_public_realm
+    team_id: parks_public_realm
+  - category_id: building_internal_adjacent
+    team_id: civic_assets_team
+    fallback_team_id: street_lighting_elec
+
+default_fallback_team_id: triage_duty_desk
+
+priority_criteria:
+  - id: CRIT_SCHOOL_CROSSING
+    priority_id: P2
+    description: "Defect directly affects a school crossing, hospital access, or busy pedestrian crossing."
+    signal_patterns:
+      - "\\b(school\\s+crossing|zebra\\s+crossing|hospital\\s+entrance)\\b"
+  - id: CRIT_OFFENSIVE_GRAFFITI
+    priority_id: P2
+    description: "Offensive or hate-related graffiti requires expedited removal."
+    signal_patterns:
+      - "\\b(hate|offensive|racist)\\s+graffiti\\b"
+
+safety_criteria:
+  - id: SF_BROKEN_GLASS_PLAYGROUND
+    label: "Broken glass or sharp debris in public play/pedestrian area"
+    severity: high
+    minimum_priority_id: P2
+    patterns:
+      - "\\b(smashed\\s+glass|broken\\s+glass)\\b.{0,50}\\b(playground|school|footpath|bus\\s+stop)\\b"
+    recommended_action: "Dispatch street cleansing for urgent sweep and make-safe."
+    require_human_review: true
+
+human_review_rules:
+  always_review_priority_ids: ["P1"]
+  review_on_safety_escalation: true
+  review_on_missing_critical_info: true
+  review_on_multi_category_ambiguity: true
+  review_on_unverified_evidence: true
+
+confidence_thresholds:
+  abstention_threshold: 0.38
+  human_review_threshold: 0.72
+  high_confidence_threshold: 0.86

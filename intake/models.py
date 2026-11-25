@@ -682,6 +682,49 @@ class TriageAttempt(models.Model):
         raise ValidationError("Triage attempts cannot be deleted.")
 
 
+class TriageEngineJob(models.Model):
+    """A durable, separately recorded request for advisory engine analysis."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PROCESSING = "PROCESSING", "Processing"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    submission = models.ForeignKey(
+        ReportSubmission, on_delete=models.PROTECT, related_name="engine_jobs"
+    )
+    requested_by = models.ForeignKey(
+        "employees.Employee", on_delete=models.SET_NULL, null=True
+    )
+    status = models.CharField(max_length=10, choices=Status, default=Status.PENDING)
+    policy_version = models.PositiveIntegerField()
+    profile = models.CharField(max_length=64)
+    config_digest = models.CharField(max_length=64)
+    input_digest = models.CharField(max_length=64)
+    visible_to_reviewers = models.BooleanField(default=False)
+    lease = models.UUIDField(null=True, editable=False)
+    started_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    result = models.JSONField(null=True, blank=True)
+    error = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("submission",),
+                condition=Q(status__in=("PENDING", "PROCESSING")),
+                name="one_pending_engine_job_per_report",
+            )
+        ]
+
+    def __str__(self) -> str:
+        """Identify the assessment."""
+        return f"Engine assessment {self.pk} for submission {self.submission_id}"
+
+
 class ReportSubmissionPhoto(models.Model):
     """A photo attached to a public report submission."""
 

@@ -118,6 +118,13 @@ INTAKE_CLIENT_IP_HEADER = os.environ.get("INTAKE_CLIENT_IP_HEADER", "REMOTE_ADDR
 # Text shown before a reporter's random reference code. Empty by default.
 INTAKE_REFERENCE_PREFIX = os.environ.get("INTAKE_REFERENCE_PREFIX", "")
 
+# Engine assessments are opt-in. The service must listen on loopback only.
+TRIAGE_ENGINE_MODE = os.environ.get("TRIAGE_ENGINE_MODE", "off")
+TRIAGE_ENGINE_URL = os.environ.get("TRIAGE_ENGINE_URL", "http://127.0.0.1:8001")
+TRIAGE_ENGINE_PROFILE = os.environ.get("TRIAGE_ENGINE_PROFILE", "")
+TRIAGE_ENGINE_CONFIG_SHA256 = os.environ.get("TRIAGE_ENGINE_CONFIG_SHA256", "")
+TRIAGE_ENGINE_SERVICE_TOKEN = os.environ.get("TRIAGE_ENGINE_SERVICE_TOKEN", "")
+
 # Name of a signed Cloudinary upload preset that uses authenticated delivery.
 # Report photos are disabled until it is configured.
 INTAKE_PHOTO_UPLOAD_PRESET = os.environ.get("INTAKE_PHOTO_UPLOAD_PRESET", "")
