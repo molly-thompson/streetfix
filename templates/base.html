@@ -44,6 +44,9 @@
               {% if perms.intake.review_reportsubmission and request.user.employee_profile %}
                 <li><a class="ui-nav-link" href="{% url 'intake:review_queue' %}">Triage</a></li>
               {% endif %}
+              {% if perms.employees.add_workassignment and request.user.employee_profile %}
+                <li><a class="ui-nav-link" href="{% url 'analytics:overview' %}">Pattern discovery</a></li>
+              {% endif %}
               <li>
                 <a class="ui-nav-link" href="{% url 'employees:dashboard' %}">Employees</a>
               </li>
