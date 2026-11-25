@@ -1,0 +1,147 @@
+profile_id: campus_facilities
+organisation_name: "Campus Facilities & Estates Operations"
+domain_description: >-
+  University estate management and building operations handling campus buildings,
+  laboratories, student residences, MEP electrical/plumbing systems, fire alarms, and grounds.
+
+ai_settings:
+  provider: gemini
+  model_name: gemini-4-hydrogen
+  permitted_models:
+    - gemini-4-hydrogen
+    - gemini-4-neon
+    - gemini-3.1-flash-lite
+  thinking_level: low
+  timeout_seconds: 25.0
+
+categories:
+  - id: electrical_power
+    name: "Building Electrical & Power Systems"
+    description: "Electrical sockets, lighting circuits, distribution panels, power outages, or water near electrics."
+    examples: ["Sparking outlet in lecture hall", "Water dripping onto socket"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: plumbing_water_ingress
+    name: "Plumbing & Building Water Ingress"
+    description: "Ceiling leaks, burst pipes, roof leaks, blocked drains, or damp inside campus buildings."
+    examples: ["Water leaking through ceiling", "Burst pipe in corridor"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: hvac_ventilation
+    name: "HVAC, Heating & Laboratory Ventilation"
+    description: "Heating failures, faulty air conditioning, fume hood faults, or unusual ventilation odours."
+    examples: ["No heating in library wing", "Lab extract fan stopped"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: structural_access_safety
+    name: "Structural, Doors & Access Safety"
+    description: "Damaged fire doors, broken stairs/handrails, sagging ceilings, or access control failures."
+    examples: ["Fire door won't latch", "Loose handrail on main stairwell"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: campus_grounds_walkways
+    name: "Campus Grounds, Roads & External Lighting"
+    description: "Campus footpaths, car park potholes, external bollards, campus streetlamps, and trees."
+    examples: ["Pothole on campus ring road", "Fallen branch on quad path"]
+    requires_location: true
+    always_require_human_review: false
+
+  - id: custodial_waste
+    name: "Custodial, Spillages & Campus Waste"
+    description: "Dumped waste, overflowing bins, graffiti, or general cleaning hazards on campus."
+    examples: ["Overflowing skip behind union", "Graffiti on lecture theatre exterior"]
+    requires_location: true
+    always_require_human_review: false
+
+priorities:
+  - id: C1
+    name: "Immediate Hazard"
+    rank: 1
+    description: "Active building/life-safety threat requiring immediate isolation, evacuation check, or emergency MEP response."
+    response_target: "Attend within 30 minutes"
+  - id: C2
+    name: "Same-Day Urgent"
+    rank: 2
+    description: "Major facility disruption, active water ingress, or safety defect requiring same-day attendance."
+    response_target: "Attend within 4 hours"
+  - id: C3
+    name: "Scheduled Maintenance"
+    rank: 3
+    description: "Confirmed repair need without acute safety or operational shutdown impact."
+    response_target: "Complete within 3 working days"
+  - id: C4
+    name: "Minor Request"
+    rank: 4
+    description: "Low-urgency cosmetic or routine facilities maintenance."
+    response_target: "Complete within 15 working days"
+
+teams:
+  - id: campus_mep_electrical
+    name: "Campus MEP & Electrical Engineering"
+    responsibilities: "High/low-voltage electrical sockets, lighting circuits, power isolation, and emergency electrical make-safe."
+  - id: building_fabric_plumbing
+    name: "Building Fabric & Plumbing Team"
+    responsibilities: "Roof/ceiling leaks, pipework, structural carpentry, glazing, and fire doors."
+  - id: hvac_lab_systems
+    name: "HVAC & Specialist Lab Systems"
+    responsibilities: "Boilers, chillers, air-handling units, and lab extract systems."
+  - id: campus_grounds_estates
+    name: "Campus Grounds & External Estates"
+    responsibilities: "Campus roads, pathways, external lighting, signage, and groundskeeping."
+  - id: campus_custodial_services
+    name: "Campus Custodial & Waste Operations"
+    responsibilities: "Cleaning, waste removal, and graffiti remediation across campus."
+  - id: estates_helpdesk
+    name: "Estates Operations Helpdesk"
+    responsibilities: "Manual triage for ambiguous, multi-trade, or out-of-scope campus reports."
+    is_triage_fallback: true
+
+routing_rules:
+  - category_id: electrical_power
+    team_id: campus_mep_electrical
+  - category_id: plumbing_water_ingress
+    team_id: building_fabric_plumbing
+    fallback_team_id: campus_mep_electrical
+  - category_id: hvac_ventilation
+    team_id: hvac_lab_systems
+  - category_id: structural_access_safety
+    team_id: building_fabric_plumbing
+  - category_id: campus_grounds_walkways
+    team_id: campus_grounds_estates
+  - category_id: custodial_waste
+    team_id: campus_custodial_services
+
+default_fallback_team_id: estates_helpdesk
+
+priority_criteria:
+  - id: CAMPUS_TEACHING_OR_LAB
+    priority_id: C2
+    description: "Issue affects an active lecture theatre, teaching lab, or student residence corridor."
+    signal_patterns:
+      - "\\b(lecture\\s+hall|lecture\\s+theatre|teaching\\s+lab|laboratory|dorm|residence)\\b"
+
+safety_criteria:
+  - id: CAMPUS_FIRE_DOOR_FAULT
+    label: "Compromised fire door or blocked emergency exit"
+    severity: high
+    minimum_priority_id: C2
+    patterns:
+      - "\\b(fire\\s+door|emergency\\s+exit|fire\\s+escape)\\b.{0,50}\\b(blocked|jammed|won't\\s+latch|wedged|broken)\\b"
+    recommended_action: "Inspect fire compartmentation/egress route immediately and assign Building Fabric."
+    require_human_review: true
+
+human_review_rules:
+  always_review_priority_ids: ["C1"]
+  review_on_safety_escalation: true
+  review_on_missing_critical_info: true
+  review_on_multi_category_ambiguity: true
+  review_on_unverified_evidence: true
+
+confidence_thresholds:
+  abstention_threshold: 0.40
+  human_review_threshold: 0.75
+  high_confidence_threshold: 0.88

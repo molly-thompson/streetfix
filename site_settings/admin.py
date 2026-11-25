@@ -23,11 +23,27 @@ class SiteConfigurationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
                 )
             },
         ),
+        (
+            "Triage decision support",
+            {
+                "fields": (
+                    "triage_engine_mode",
+                    "triage_engine_configuration",
+                ),
+                "description": (
+                    "Enable only after approving the engine configuration and "
+                    "provider data sharing. Shadow results are never shown "
+                    "to reviewers."
+                ),
+            },
+        ),
     ]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         """Allow creating settings only when the singleton does not exist."""
-        return not SiteConfiguration.objects.filter(pk=1).exists()
+        return not SiteConfiguration.objects.filter(
+            pk=1
+        ).exists() and super().has_add_permission(request)
 
     def has_delete_permission(
         self, request: HttpRequest, obj: SiteConfiguration | None = None

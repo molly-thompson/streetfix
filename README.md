@@ -25,6 +25,10 @@ site branding and theme settings.
   uploads. Every report is saved for central staff review, never straight into
   work, and gets a random reference code (with an optional deployment prefix).
   See `docs/triage-policy-lifecycle.md` before enabling the form or photos.
+- **Triage dashboard:** Authorized reviewers can work through the review queue
+  and request optional advisory engine assessments. Decision support is off
+  until an administrator configures and approves it; see
+  `docs/triage-policy-lifecycle.md`.
 - **Static assets:** UIkit and the site theme are served from the project's
   static files; the pinned Leaflet distribution is also bundled locally for the
   optional report map. WhiteNoise supports serving collected static files in

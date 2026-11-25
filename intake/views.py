@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import QuerySet
+from django.db.models import Count, OuterRef, Q, QuerySet, Subquery
 from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
@@ -41,7 +41,13 @@ from intake.forms import (
     OutOfScopeForm,
     ReopenReportForm,
 )
-from intake.models import IssueCategory, ReportPhotoSlot, ReportSubmission, SlaPolicy
+from intake.models import (
+    IssueCategory,
+    ReportPhotoSlot,
+    ReportSubmission,
+    SlaPolicy,
+    TriageEngineJob,
+)
 from intake.report_views import session_key
 from intake.services.acceptance import accept_report
 from intake.services.duplicates import duplicate_candidates, link_duplicate
@@ -66,6 +72,11 @@ from intake.services.review import (
     recover_received,
     reject_out_of_scope,
     reopen_final_decision,
+)
+from intake.services.triage.engine import (
+    engine_mode,
+    request_assessment,
+    reviewable_result,
 )
 
 from .chat import (
@@ -365,7 +376,23 @@ class ReviewQueueView(ReviewerMixin, ListView):  # type: ignore[type-arg]
 
     def get_queryset(self) -> QuerySet[ReportSubmission]:
         """Order urgent reports first, then oldest first."""
-        return pending_reviews()
+        latest_job = TriageEngineJob.objects.filter(
+            submission_id=OuterRef("pk")
+        ).order_by("-created_at", "-pk")
+        return pending_reviews().annotate(
+            engine_job_status=Subquery(latest_job.values("status")[:1])
+        )
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Summarize the full queue, not just the current page."""
+        context = super().get_context_data(**kwargs)
+        context["queue_totals"] = pending_reviews().aggregate(
+            total=Count("pk"),
+            urgent=Count("pk", filter=Q(queue_urgent=True)),
+            processing=Count("pk", filter=Q(triage_state="RECEIVED")),
+        )
+        context["engine_mode"] = engine_mode()
+        return context
 
 
 def finalized_reports() -> QuerySet[ReportSubmission]:
@@ -457,7 +484,29 @@ class ReviewDetailView(ReviewerMixin, DetailView):  # type: ignore[type-arg]
         context["report_photos"] = ReportPhotoSlot.objects.filter(
             draft__submission=self.object, asset_id__isnull=False
         ).order_by("created_at", "pk")
+        context["engine_mode"] = engine_mode()
+        job = self.object.engine_jobs.first()
+        context["engine_job"] = job
+        if job is not None and reviewable_result(job, self.object):
+            context["engine_result_job"] = job
         return context
+
+
+@method_decorator(never_cache, name="dispatch")
+class RequestEngineAssessmentView(ReviewerMixin, View):
+    """Queue an optional engine assessment for an authorized reviewer."""
+
+    def post(self, request: HttpRequest, pk: int) -> HttpResponse:
+        """Schedule analysis without delaying review or contacting the provider."""
+        submission = get_object_or_404(pending_reviews(), pk=pk)
+        reviewer = get_object_or_404(Employee, user_id=request.user.pk)
+        try:
+            request_assessment(submission.pk, reviewer)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+        else:
+            messages.success(request, "Assessment queued for processing.")
+        return redirect("intake:review_detail", pk=pk)
 
 
 @method_decorator(never_cache, name="dispatch")
