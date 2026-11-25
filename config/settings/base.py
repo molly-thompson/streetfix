@@ -66,7 +66,7 @@ ACCOUNT_SIGNUP_FIELDS = [
     "password1*",
     "password2*",
 ]
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_ADAPTER = "config.adapters.NoSignupAccountAdapter"
 
 # Let Allauth and Django admin handle their own authentication,

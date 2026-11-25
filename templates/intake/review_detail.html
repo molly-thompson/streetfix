@@ -1,278 +1,368 @@
 {% extends "base.html" %}
 
+{% load static %}
+
 {% block title %}Report {{ submission.pk }} · {{ site_name }}{% endblock title %}
+{% block extra_head %}
+  <link href="{% static 'css/triage.css' %}" rel="stylesheet">
+{% endblock extra_head %}
 
 {% block content %}
-  <p><a href="{% url 'intake:review_queue' %}">Back to review reports</a></p>
-  <h1>Report {{ submission.pk }}</h1>
-  {% if submission.queue_urgent %}<p><strong>Urgent review</strong></p>{% endif %}
-  <p>{{ submission.get_triage_state_display }} · Received {{ submission.submitted_at }}</p>
-  {% if submission.triage_state == "RECEIVED" %}
-    <p>Automated triage is still pending. Retry it to prepare this report for review.</p>
-    <form
-      action="{% url 'intake:recover_report' submission.pk %}"
-      method="post"
-    >
-      {% csrf_token %}
-      <button class="ui-button" type="submit">Retry triage</button>
-    </form>
-  {% endif %}
-  <h2>Reported issue</h2>
-  <dl class="ui-description-list">
-    <dt>Issue</dt>
-    <dd>{{ submission.reported_issue_type|default:"Not specified" }}{% if submission.other_selected %} (Other){% endif %}</dd>
-    <dt>Description</dt>
-    <dd>
-      {{ submission.description|linebreaksbr }}
-    </dd>
-    <dt>Location description</dt>
-    <dd>
-      {{ submission.location_description|default:"Not provided"|linebreaksbr }}
-    </dd>
-    <dt>Map pin</dt>
-    <dd>
-      {% if submission.latitude is not None and submission.longitude is not None %}
-        {{ submission.latitude }}, {{ submission.longitude }}
-      {% else %}
-        Not provided
-      {% endif %}
-    </dd>
-    <dt>Reported impact</dt>
-    <dd>
-      {{ submission.get_reported_impact_display }}
-    </dd>
-    <dt>Reported time sensitivity</dt>
-    <dd>
-      {{ submission.get_reported_time_sensitivity_display }}
-    </dd>
-    <dt>Reported sensitive content</dt>
-    <dd>
-      {{ submission.get_reported_sensitive_content_display }}
-    </dd>
-  </dl>
-
-  {% if report_photos %}
-    <h2>Report photos</h2>
-    <ul class="ui-list">
-      {% for photo in report_photos %}
-        <li>
-          <a href="{% url 'intake:report_photo' photo.pk %}">Photo {{ forloop.counter }}</a>
-          {% if photo.format == "heic" %}(HEIC download){% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-  {% if submission.triage_state == "NEEDS_REVIEW" %}
-    <p>
-      <a
-        class="ui-button"
-        href="{% url 'intake:accept_report' submission.pk %}"
-      >Accept report</a>
-      <a
-        class="ui-button ui-button--secondary"
-        href="{% url 'intake:out_of_scope' submission.pk %}"
-      >Mark out of scope</a>
-    </p>
-    <h2>Possible matching work</h2>
-    {% if duplicate_search.distance_m %}
-      <p>Showing work created within {{ duplicate_search.age_days }} days and approximately {{ duplicate_search.distance_m }} metres of the pin.</p>
-      {% if duplicate_search.truncated %}<p>The search checks at most 500 recent records in the surrounding map area and displays at most 20 matches.</p>{% endif %}
-    {% else %}
-      <p>Showing recent work at exactly the same map pin.</p>
-    {% endif %}
-    <p>Other matches may exist. Location alone does not establish a duplicate.</p>
-    {% if duplicate_search.candidates %}
-      <ul class="ui-list ui-list--divided">
-        {% for candidate in duplicate_search.candidates %}
-          <li>
-            <a
-              href="{% url 'intake:duplicate_review' submission.pk %}?work_item_id={{ candidate.work.pk }}"
-            >Work item {{ candidate.work.pk }}</a>:
-            {{ candidate.work.issue_type }}, {{ candidate.work.status }}
-            {% if duplicate_search.distance_m %}(approximately {{ candidate.distance_m|floatformat:0 }} m away){% endif %}
-            {% if candidate.work.status.code == "RESOLVED" %}<strong>Possible recurrence</strong>{% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p>No matches were found in this search, or the report has no map pin.</p>
-    {% endif %}
-    <p><a href="{% url 'intake:duplicate_review' submission.pk %}">Look up another work item</a></p>
-    <h2>Correct location</h2>
-    <p>Provide coordinates and explain how the location was confirmed.</p>
-    <form
-      class="ui-form ui-stack"
-      action="{% url 'intake:correct_location' submission.pk %}"
-      method="post"
-    >
-      {% csrf_token %}
-      {% if location_form.non_field_errors %}
-        <div class="ui-alert ui-alert--danger" role="alert">{{ location_form.non_field_errors }}</div>
-      {% endif %}
-      {% for field in location_form %}
-        <div class="ui-field">
-          <label class="ui-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          <div class="ui-field__control">{{ field }}</div>
-          {% if field.errors %}<div class="ui-error" role="alert">{{ field.errors }}</div>{% endif %}
+  <div class="triage-dashboard">
+    <p class="triage-back"><a href="{% url 'intake:review_queue' %}">Back to review reports</a></p>
+    <header class="triage-heading">
+      <div>
+        <p class="triage-kicker">Report review</p>
+        <h1>Report {{ submission.pk }}</h1>
+        <p>{{ submission.get_triage_state_display }} · Received {{ submission.submitted_at }}</p>
+        {% if submission.queue_urgent %}<span class="triage-urgent">Urgent review</span>{% endif %}
+      </div>
+      {% if submission.triage_state == "NEEDS_REVIEW" %}
+        <div class="triage-actions">
+          <a
+            class="ui-button"
+            href="{% url 'intake:accept_report' submission.pk %}"
+          >Accept report</a>
+          <a
+            class="ui-button ui-button--secondary"
+            href="{% url 'intake:out_of_scope' submission.pk %}"
+          >Mark out of scope</a>
         </div>
-      {% endfor %}
-      <button class="ui-button" type="submit">Save location</button>
-    </form>
-  {% endif %}
-  <section class="ui-space-block">
-    <h2>Decision support</h2>
-    <p>Suggestions are not decisions. Confirm the evidence and use your own judgement.</p>
-    {% if engine_mode == "shadow" %}
-      <p>Shadow mode: results are recorded for evaluation and are not shown here.</p>
-    {% elif engine_mode != "review" %}
-      <p>Decision support is disabled for this deployment.</p>
+      {% endif %}
+    </header>
+
+    {% if submission.triage_state == "RECEIVED" %}
+      <section class="triage-notice">
+        <h2>Processing pending</h2>
+        <p>Automated triage is still pending. Retry it to prepare this report for review.</p>
+        <form
+          action="{% url 'intake:recover_report' submission.pk %}"
+          method="post"
+        >
+          {% csrf_token %}
+          <button class="ui-button" type="submit">Retry triage</button>
+        </form>
+      </section>
     {% endif %}
-    {% if engine_job %}
-      <p>Latest assessment: {{ engine_job.get_status_display }}.</p>
-      {% if engine_job.status == "FAILED" %}<p>{{ engine_job.error }}</p>{% endif %}
-    {% endif %}
-    {% if submission.triage_state == "NEEDS_REVIEW" and engine_mode == "review" or submission.triage_state == "NEEDS_REVIEW" and engine_mode == "shadow" %}
-      <form
-        action="{% url 'intake:request_engine_assessment' submission.pk %}"
-        method="post"
-      >
-        {% csrf_token %}
-        <button class="ui-button ui-button--secondary" type="submit">Request assessment</button>
-      </form>
-    {% endif %}
-    {% if engine_result_job %}
-      {% with result=engine_result_job.result %}
-        <h3>Assessment: {{ result.status }}</h3>
-        <p>Engine profile {{ engine_result_job.profile }}; policy version {{ engine_result_job.policy_version }}.</p>
-        {% if result.status == "degraded" %}
-          <p>AI analysis was unavailable. This result contains deterministic checks only.</p>
-          {% if result.provider_metadata.error_code %}<p>Provider status: {{ result.provider_metadata.error_code }}</p>{% endif %}
-        {% elif result.status == "abstained" %}
-          <p>The engine withheld one or more recommendations because of uncertainty.</p>
+
+    <div class="triage-grid">
+      <div class="triage-stack">
+        <section class="triage-panel triage-evidence">
+          <div class="triage-panel-heading">
+            <h2>Reported issue</h2>
+          </div>
+          <div class="triage-panel-body">
+            <p class="triage-issue">{{ submission.reported_issue_type|default:"Not specified" }}{% if submission.other_selected %} (Other){% endif %}</p>
+            <h3>Description</h3>
+            <p>{{ submission.description|linebreaksbr }}</p>
+            <h3>Location description</h3>
+            <p>{{ submission.location_description|default:"Not provided"|linebreaksbr }}</p>
+            <dl class="triage-details">
+              <div><dt>Map pin</dt><dd>{% if submission.latitude is not None and submission.longitude is not None %}{{ submission.latitude }}, {{ submission.longitude }}{% else %}Not provided{% endif %}</dd></div>
+              <div>
+                <dt>Reported impact</dt>
+                <dd>
+                  {{ submission.get_reported_impact_display }}
+                </dd>
+              </div>
+              <div>
+                <dt>Reported time sensitivity</dt>
+                <dd>
+                  {{ submission.get_reported_time_sensitivity_display }}
+                </dd>
+              </div>
+              <div>
+                <dt>Reported sensitive content</dt>
+                <dd>
+                  {{ submission.get_reported_sensitive_content_display }}
+                </dd>
+              </div>
+            </dl>
+            {% if report_photos %}
+              <h3>Report photos</h3>
+              <ul>
+                {% for photo in report_photos %}
+                  <li>
+                    <a href="{% url 'intake:report_photo' photo.pk %}">Photo {{ forloop.counter }}</a>
+                    {% if photo.format == "heic" %}(HEIC download){% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="triage-panel">
+          <div class="triage-panel-heading">
+            <h2>Contact</h2>
+          </div>
+          <div class="triage-panel-body">
+            {% if submission.reporter %}
+              <dl class="triage-details">
+                <div>
+                  <dt>Name</dt>
+                  <dd>
+                    {{ submission.reporter.name|default:"Not provided" }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>
+                    {{ submission.reporter.email|default:"Not provided" }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Telephone</dt>
+                  <dd>
+                    {{ submission.reporter.telephone|default:"Not provided" }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Address</dt>
+                  <dd>
+                    {{ submission.reporter.address|default:"Not provided"|linebreaksbr }}
+                  </dd>
+                </div>
+                <div><dt>Updates requested</dt><dd>{{ submission.updates_requested|yesno:"Yes,No" }}{% if submission.contact_method %} ({{ submission.contact_method }}){% endif %}</dd></div>
+              </dl>
+            {% else %}
+              <p>No contact details provided.</p>
+            {% endif %}
+          </div>
+        </section>
+      </div>
+
+      <div class="triage-stack">
+        {% if submission.triage_state == "NEEDS_REVIEW" %}
+          <section class="triage-panel">
+            <div class="triage-panel-heading">
+              <div>
+                <h2>Possible matching work</h2>
+                <p>Check existing work before deciding whether to create a new item.</p>
+              </div>
+            </div>
+            <div class="triage-panel-body">
+              {% if duplicate_search.distance_m %}
+                <p>Showing work created within {{ duplicate_search.age_days }} days and approximately {{ duplicate_search.distance_m }} metres of the pin.</p>
+              {% else %}
+                <p>Showing recent work at exactly the same map pin.</p>
+              {% endif %}
+              {% if duplicate_search.truncated %}<p><strong>The search is truncated.</strong> It checks at most 500 records in the surrounding map area and displays at most 20 matches.</p>{% endif %}
+              <p>Other matches may exist. A suggestion is not a decision; a reviewer must confirm any duplicate.</p>
+              {% if matching_enabled %}
+                <form
+                  action="{% url 'intake:assess_duplicates' submission.pk %}"
+                  method="post"
+                >
+                  {% csrf_token %}
+                  <button class="ui-button ui-button--secondary" type="submit">Assess matching signals</button>
+                </form>
+                {% if matching_message %}<p class="triage-hint">{{ matching_message }}</p>{% endif %}
+              {% endif %}
+              {% if matching_candidates %}
+                <ul class="triage-matches">
+                  {% for row in matching_candidates %}
+                    <li>
+                      <div class="triage-match-heading">
+                        <a
+                          href="{% url 'intake:duplicate_review' submission.pk %}?work_item_id={{ row.candidate.work.pk }}"
+                        >Work item {{ row.candidate.work.pk }}</a>
+                        {% if row.assessment %}<strong>{{ row.assessment.label }}</strong>{% endif %}
+                      </div>
+                      <p>{{ row.candidate.work.issue_type }}, {{ row.candidate.work.status }}{% if duplicate_search.distance_m %} · approximately {{ row.candidate.distance_m|floatformat:0 }} m away{% endif %}</p>
+                      {% if row.candidate.work.status.code == "RESOLVED" %}<p><strong>Possible recurrence</strong></p>{% endif %}
+                      {% if row.assessment %}
+                        <p>{{ row.assessment.explanation }}</p>
+                        <details>
+                          <summary>View matching signals</summary>
+                          <ul>{% for signal in row.assessment.signals %}<li>{{ signal.label }}: {{ signal.summary }} ({{ signal.status }})</li>{% endfor %}</ul>
+                          {% for note in row.assessment.uncertainty %}<p>{{ note }}</p>{% endfor %}
+                          {% for note in row.assessment.contradictions %}<p>{{ note }}</p>{% endfor %}
+                        </details>
+                      {% elif matching_enabled and not matching_message %}
+                        <p class="triage-hint">Not assessed: no usable original report description is available.</p>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>No matches were found in this search, or the report has no map pin.</p>
+              {% endif %}
+              <p><a href="{% url 'intake:duplicate_review' submission.pk %}">Look up another work item</a></p>
+            </div>
+          </section>
+
+          <section class="triage-panel">
+            <div class="triage-panel-heading">
+              <h2>Correct location</h2>
+            </div>
+            <div class="triage-panel-body">
+              <p>Provide coordinates and explain how the location was confirmed.</p>
+              <form
+                class="ui-form ui-stack"
+                action="{% url 'intake:correct_location' submission.pk %}"
+                method="post"
+              >
+                {% csrf_token %}
+                {% if location_form.non_field_errors %}
+                  <div class="ui-alert ui-alert--danger" role="alert">{{ location_form.non_field_errors }}</div>
+                {% endif %}
+                {% for field in location_form %}
+                  <div class="ui-field">
+                    <label class="ui-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    <div class="ui-field__control">{{ field }}</div>
+                    {% if field.errors %}<div class="ui-error" role="alert">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endfor %}
+                <button class="ui-button" type="submit">Save location</button>
+              </form>
+            </div>
+          </section>
         {% endif %}
-        <dl class="ui-description-list">
-          <dt>Suggested category</dt>
-          <dd>
-            {{ result.category_recommendation.primary_category_name|default:"Not determined" }}
-            {{ result.category_recommendation.abstention_reason|default:"" }}
-          </dd>
-          <dt>Suggested engine priority</dt>
-          <dd>
-            {{ result.priority_recommendation.priority_name|default:"Not determined" }}. {{ result.priority_recommendation.rationale }}
-          </dd>
-          <dt>Suggested team</dt>
-          <dd>
-            {{ result.routing_recommendation.team_name|default:"Not determined" }}. {{ result.routing_recommendation.rationale }}
-          </dd>
-        </dl>
-        <p>Engine priorities are not confirmed priority or urgency decisions.</p>
-        {% if result.safety_assessment.escalation_triggered %}
-          <h3>Safety alerts</h3>
-          <p>These are prompts for human review, not an emergency response.</p>
-          <ul>
-            {% for hazard in result.safety_assessment.matched_hazards %}
-              <li>{{ hazard.label }}: {{ hazard.matched_text }}</li>
+      </div>
+    </div>
+
+    <section class="triage-panel">
+      <div class="triage-panel-heading">
+        <h2>Decision support</h2>
+      </div>
+      <div class="triage-panel-body">
+        <p>Suggestions are not decisions. Confirm the evidence and use your own judgement.</p>
+        {% if engine_mode == "shadow" %}
+          <p>Shadow mode: results are recorded for evaluation and are not shown here.</p>
+        {% elif engine_mode != "review" %}
+          <p>Decision support is disabled for this deployment.</p>
+        {% endif %}
+        {% if engine_job %}
+          <p>Latest assessment: {{ engine_job.get_status_display }}.</p>
+          {% if engine_job.status == "FAILED" %}<p>{{ engine_job.error }}</p>{% endif %}
+        {% endif %}
+        {% if submission.triage_state == "NEEDS_REVIEW" and engine_mode == "review" or submission.triage_state == "NEEDS_REVIEW" and engine_mode == "shadow" %}
+          <form
+            action="{% url 'intake:request_engine_assessment' submission.pk %}"
+            method="post"
+          >
+            {% csrf_token %}
+            <button class="ui-button ui-button--secondary" type="submit">Request assessment</button>
+          </form>
+        {% endif %}
+        {% if engine_result_job %}
+          {% with result=engine_result_job.result %}
+            <h3>Assessment: {{ result.status }}</h3>
+            <p>Engine profile {{ engine_result_job.profile }}; policy version {{ engine_result_job.policy_version }}.</p>
+            {% if result.status == "degraded" %}
+              <p>AI analysis was unavailable. This result contains deterministic checks only.</p>
+              {% if result.provider_metadata.error_code %}<p>Provider status: {{ result.provider_metadata.error_code }}</p>{% endif %}
+            {% elif result.status == "abstained" %}
+              <p>The engine withheld one or more recommendations because of uncertainty.</p>
+            {% endif %}
+            <dl class="ui-description-list">
+              <dt>Suggested category</dt>
+              <dd>
+                {{ result.category_recommendation.primary_category_name|default:"Not determined" }}
+                {{ result.category_recommendation.abstention_reason|default:"" }}
+              </dd>
+              <dt>Suggested engine priority</dt>
+              <dd>
+                {{ result.priority_recommendation.priority_name|default:"Not determined" }}. {{ result.priority_recommendation.rationale }}
+              </dd>
+              <dt>Suggested team</dt>
+              <dd>
+                {{ result.routing_recommendation.team_name|default:"Not determined" }}. {{ result.routing_recommendation.rationale }}
+              </dd>
+            </dl>
+            <p>Engine priorities are not confirmed priority or urgency decisions.</p>
+            {% if result.safety_assessment.escalation_triggered %}
+              <h3>Safety alerts</h3>
+              <p>These are prompts for human review, not an emergency response.</p>
+              <ul>
+                {% for hazard in result.safety_assessment.matched_hazards %}
+                  <li>{{ hazard.label }}: {{ hazard.matched_text }}</li>
+                {% endfor %}
+              </ul>
+              {% for action in result.safety_assessment.recommended_immediate_actions %}
+                <p>Suggested action: {{ action }}</p>
+              {% endfor %}
+            {% endif %}
+            {% for warning in result.safety_assessment.safety_warnings %}
+              <p>Safety warning: {{ warning }}</p>
             {% endfor %}
-          </ul>
-          {% for action in result.safety_assessment.recommended_immediate_actions %}
-            <p>Suggested action: {{ action }}</p>
-          {% endfor %}
+            {% for mention in result.safety_assessment.negated_or_uncertain_mentions %}
+              <p>Uncertain safety mention: {{ mention.phrase }}. {{ mention.explanation }}</p>
+            {% endfor %}
+            <h3>Evidence and uncertainty</h3>
+            <p>{{ result.evidence_and_reasoning.reasoning_summary }}</p>
+            <p>{{ result.uncertainty_assessment.decision_uncertainty.explanation }}</p>
+            {% for fact in result.evidence_and_reasoning.reported_facts %}
+              <p>Model-identified fact, not independently verified: {{ fact }}</p>
+            {% endfor %}
+            <ul>
+              {% for excerpt in result.evidence_and_reasoning.evidence_excerpts %}
+                <li>{{ excerpt.quote }} {% if excerpt.verified_in_source %}(matched to input){% else %}(not verified){% endif %}</li>
+              {% endfor %}
+            </ul>
+            {% for inference in result.evidence_and_reasoning.inferred_conclusions %}
+              <p>Inference: {{ inference.conclusion }}. {{ inference.uncertainty_note }}</p>
+            {% endfor %}
+            {% for flag in result.evidence_and_reasoning.unsupported_or_contradictory_flags %}
+              <p>Evidence warning: {{ flag }}</p>
+            {% endfor %}
+            {% for item in result.missing_information %}
+              <p>Missing information: {{ item.question }}</p>
+            {% endfor %}
+            {% for reason in result.human_review.reasons %}
+              <p>Review note: {{ reason }}</p>
+            {% endfor %}
+            {% for warning in result.warnings %}
+              <p>Assessment warning: {{ warning }}</p>
+            {% endfor %}
+          {% endwith %}
+        {% elif engine_job.status == "COMPLETED" and engine_mode == "review" %}
+          <p>This result is unavailable because it is a shadow assessment or its report or policy context changed.</p>
         {% endif %}
-        {% for warning in result.safety_assessment.safety_warnings %}
-          <p>Safety warning: {{ warning }}</p>
-        {% endfor %}
-        {% for mention in result.safety_assessment.negated_or_uncertain_mentions %}
-          <p>Uncertain safety mention: {{ mention.phrase }}. {{ mention.explanation }}</p>
-        {% endfor %}
-        <h3>Evidence and uncertainty</h3>
-        <p>{{ result.evidence_and_reasoning.reasoning_summary }}</p>
-        <p>{{ result.uncertainty_assessment.decision_uncertainty.explanation }}</p>
-        {% for fact in result.evidence_and_reasoning.reported_facts %}
-          <p>Model-identified fact, not independently verified: {{ fact }}</p>
-        {% endfor %}
-        <ul>
-          {% for excerpt in result.evidence_and_reasoning.evidence_excerpts %}
-            <li>{{ excerpt.quote }} {% if excerpt.verified_in_source %}(matched to input){% else %}(not verified){% endif %}</li>
-          {% endfor %}
-        </ul>
-        {% for inference in result.evidence_and_reasoning.inferred_conclusions %}
-          <p>Inference: {{ inference.conclusion }}. {{ inference.uncertainty_note }}</p>
-        {% endfor %}
-        {% for flag in result.evidence_and_reasoning.unsupported_or_contradictory_flags %}
-          <p>Evidence warning: {{ flag }}</p>
-        {% endfor %}
-        {% for item in result.missing_information %}
-          <p>Missing information: {{ item.question }}</p>
-        {% endfor %}
-        {% for reason in result.human_review.reasons %}
-          <p>Review note: {{ reason }}</p>
-        {% endfor %}
-        {% for warning in result.warnings %}
-          <p>Assessment warning: {{ warning }}</p>
-        {% endfor %}
-      {% endwith %}
-    {% elif engine_job.status == "COMPLETED" and engine_mode == "review" %}
-      <p>This result is unavailable because it is a shadow assessment or its report or policy context changed.</p>
-    {% endif %}
-  </section>
-  <h2>Contact</h2>
-  {% if submission.reporter %}
-    <dl class="ui-description-list">
-      <dt>Name</dt>
-      <dd>
-        {{ submission.reporter.name|default:"Not provided" }}
-      </dd>
-      <dt>Email</dt>
-      <dd>
-        {{ submission.reporter.email|default:"Not provided" }}
-      </dd>
-      <dt>Telephone</dt>
-      <dd>
-        {{ submission.reporter.telephone|default:"Not provided" }}
-      </dd>
-      <dt>Address</dt>
-      <dd>
-        {{ submission.reporter.address|default:"Not provided"|linebreaksbr }}
-      </dd>
-      <dt>Updates requested</dt>
-      <dd>{{ submission.updates_requested|yesno:"Yes,No" }}{% if submission.contact_method %} ({{ submission.contact_method }}){% endif %}</dd>
-    </dl>
-  {% else %}
-    <p>No contact details provided.</p>
-  {% endif %}
-  <h2>Triage history</h2>
-  {% for attempt in submission.triage_attempts.all %}
-    <section class="ui-space-block">
-      <h3>{{ attempt.get_stage_display }} · {{ attempt.created_at }}</h3>
-      {% if attempt.policy_version %}<p>Policy version: {{ attempt.policy_version }}</p>{% endif %}
-      {% if attempt.reviewer %}<p>Reviewer: {{ attempt.reviewer }}</p>{% endif %}
-      {% if attempt.decision %}<p>Result: {{ attempt.decision }}</p>{% endif %}
-      {% if attempt.reason %}<p>{{ attempt.reason|linebreaksbr }}</p>{% endif %}
-      {% if attempt.evidence.reporter_duplicate_claim %}
-        <p>
-          Reporter suggested report {{ attempt.evidence.reporter_duplicate_claim.reference }}
-          {% if attempt.evidence.reporter_duplicate_claim.confirmed_by_reporter %}
-            is the same problem.
-          {% else %}
-            may be the same problem.
-          {% endif %}
-          A reviewer must check this.
-        </p>
-      {% endif %}
-      {% if attempt.decision == "LOCATION_CORRECTED" %}
-        <p>Previous pin: {{ attempt.evidence.previous_location.latitude|default_if_none:"Not provided" }}, {{ attempt.evidence.previous_location.longitude|default_if_none:"Not provided" }}</p>
-        <p>Corrected pin: {{ attempt.evidence.corrected_location.latitude }}, {{ attempt.evidence.corrected_location.longitude }}</p>
-      {% endif %}
-      {% if attempt.field_outcomes %}
-        <dl class="ui-description-list">
-          {% for field, outcome in attempt.field_outcomes.items %}
-            <dt>{{ field }}</dt>
-            <dd>{{ outcome.state }}{% if outcome.value %}: {{ outcome.value }}{% endif %}</dd>
-          {% endfor %}
-        </dl>
-      {% endif %}
+      </div>
     </section>
-  {% empty %}
-    <p>Automated triage has not been recorded.</p>
-  {% endfor %}
+
+    <section class="triage-panel triage-history">
+      <div class="triage-panel-heading">
+        <h2>Triage history</h2>
+      </div>
+      <div class="triage-panel-body">
+        {% for attempt in submission.triage_attempts.all %}
+          <section class="triage-history-entry">
+            <h3>{{ attempt.get_stage_display }} · {{ attempt.created_at }}</h3>
+            {% if attempt.policy_version %}<p>Policy version: {{ attempt.policy_version }}</p>{% endif %}
+            {% if attempt.reviewer %}<p>Reviewer: {{ attempt.reviewer }}</p>{% endif %}
+            {% if attempt.decision %}<p>Result: {{ attempt.decision }}</p>{% endif %}
+            {% if attempt.reason %}<p>{{ attempt.reason|linebreaksbr }}</p>{% endif %}
+            {% if attempt.evidence.reporter_duplicate_claim %}
+              <p>
+                Reporter suggested report {{ attempt.evidence.reporter_duplicate_claim.reference }}
+                {% if attempt.evidence.reporter_duplicate_claim.confirmed_by_reporter %}
+                  is the same problem.
+                {% else %}
+                  may be the same problem.
+                {% endif %}
+                A reviewer must check this.
+              </p>
+            {% endif %}
+            {% if attempt.decision == "LOCATION_CORRECTED" %}
+              <p>Previous pin: {{ attempt.evidence.previous_location.latitude|default_if_none:"Not provided" }}, {{ attempt.evidence.previous_location.longitude|default_if_none:"Not provided" }}</p>
+              <p>Corrected pin: {{ attempt.evidence.corrected_location.latitude }}, {{ attempt.evidence.corrected_location.longitude }}</p>
+            {% endif %}
+            {% if attempt.field_outcomes %}
+              <dl class="triage-details">
+                {% for field, outcome in attempt.field_outcomes.items %}
+                  <dt>{{ field }}</dt>
+                  <dd>{{ outcome.state }}{% if outcome.value %}: {{ outcome.value }}{% endif %}</dd>
+                {% endfor %}
+              </dl>
+            {% endif %}
+          </section>
+        {% empty %}
+          <p>Automated triage has not been recorded.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
 {% endblock content %}

@@ -52,6 +52,7 @@
                 </li>
               {% endif %}
               {% if perms.intake.review_reportsubmission %}
+              {% if perms.intake.review_reportsubmission and request.user.employee_profile %}
                 <li><a class="ui-nav-link" href="{% url 'intake:review_queue' %}">Triage</a></li>
               {% endif %}
               <li>

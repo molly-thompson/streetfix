@@ -1,18 +1,30 @@
 """Tests for access to the central review queue."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from employees.organisation_models import Employee
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
-from intake.models import ReportSubmission, TriageAttempt
+from intake.models import ReportSubmission, TriageAttempt, TriagePolicy
+from site_settings.configuration import clear_site_configuration_cache
+from site_settings.models import SiteConfiguration, ThemeSettings
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def clear_configuration_cache() -> Generator[None]:
+    """Keep cached configuration from leaking between database tests."""
+    clear_site_configuration_cache()
+    yield
+    clear_site_configuration_cache()
 
 
 def test_queue_requires_review_permission_and_employee(
@@ -304,3 +316,201 @@ def test_reviewer_accepts_only_with_confirmed_decisions(
     assert submission.work_item is not None
     assert submission.work_item.status.code == "TRIAGED"
     assert submission.triage_attempts.get(decision="ACCEPTED").reviewer == reviewer
+
+
+def test_queue_summary_counts_the_whole_queue(
+    client: Client, make_employee: Callable[..., Employee]
+) -> None:
+    """The dashboard totals include reports beyond the first page."""
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    client.force_login(reviewer.user)
+    ReportSubmission.objects.bulk_create(
+        [
+            ReportSubmission(
+                description=f"Report {index}",
+                updates_requested=False,
+                triage_state="NEEDS_REVIEW",
+                urgent_review=index == 50,
+            )
+            for index in range(51)
+        ]
+    )
+    response = client.get(reverse("intake:review_queue"))
+    assert response.context["queue_counts"] == {
+        "total": 51,
+        "urgent": 1,
+        "processing": 0,
+        "ready": 51,
+    }
+
+
+def test_review_dashboards_use_database_theme(
+    client: Client,
+    make_employee: Callable[..., Employee],
+    theme_settings: ThemeSettings,
+) -> None:
+    """Both dashboards use the same resolved database theme as the site."""
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    client.force_login(reviewer.user)
+    theme_settings.site_name = "Neighbourhood Hub"
+    theme_settings.primary_color = "#123456"
+    theme_settings.background_color = "#f0f0f0"
+    theme_settings.text_color = "#202020"
+    theme_settings.radius = "8px"
+    theme_settings.space_unit = "5px"
+    theme_settings.save()
+    submission = ReportSubmission.objects.create(
+        description="A report", updates_requested=False, triage_state="NEEDS_REVIEW"
+    )
+    for url in (
+        reverse("intake:review_queue"),
+        reverse("intake:review_detail", args=[submission.pk]),
+    ):
+        content = client.get(url).content.decode()
+        assert "Neighbourhood Hub" in content
+        assert "--theme-primary: #123456;" in content
+        assert "--theme-radius: 8px;" in content
+        assert "--theme-space-unit: 5px;" in content
+        assert "css/triage" in content
+        assert "ui-button" in content
+        assert "uk-button" not in content
+
+
+def test_advisory_matching_is_private_audited_and_invalidated(
+    client: Client,
+    make_employee: Callable[..., Employee],
+    make_work_item: Callable[..., WorkItem],
+    clear_configuration_cache: None,
+) -> None:
+    """An explicit assessment never links work and is invalidated on change."""
+    SiteConfiguration.objects.update_or_create(
+        pk=1, defaults={"duplicate_matching_enabled": True}
+    )
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    work = make_work_item()
+    original = ReportSubmission.objects.create(
+        work_item=work,
+        description="A large pothole in the road outside the shop",
+        reported_issue_type=work.issue_type,
+        updates_requested=False,
+        triage_state="ACCEPTED",
+        latitude=work.latitude,
+        longitude=work.longitude,
+    )
+    submission = ReportSubmission.objects.create(
+        description=original.description,
+        reported_issue_type=work.issue_type,
+        updates_requested=False,
+        triage_state="NEEDS_REVIEW",
+        latitude=work.latitude,
+        longitude=work.longitude,
+    )
+    policy = TriagePolicy.objects.create(
+        version=1, name="Test", duplicate_distance_m=100, duplicate_age_days=30
+    )
+    TriagePolicy._base_manager.filter(pk=policy.pk).update(
+        status="ACTIVE", activated_at=timezone.now()
+    )
+    detail = reverse("intake:review_detail", args=[submission.pk])
+    assess = reverse("intake:assess_duplicates", args=[submission.pk])
+    assert client.post(assess).status_code == 302
+    unprivileged = make_employee("unprivileged")
+    client.force_login(unprivileged.user)
+    assert client.post(assess).status_code == 403
+    client.force_login(reviewer.user)
+    assert client.get(assess).status_code == 405
+    assert client.get(detail).status_code == 200
+    assert not submission.triage_attempts.exists()
+    assert client.post(assess).status_code == 302
+    submission.refresh_from_db()
+    assert submission.triage_state == "NEEDS_REVIEW"
+    assert submission.work_item_id is None
+    attempt = submission.triage_attempts.get(decision="DUPLICATE_ASSESSMENT")
+    assert attempt.reviewer == reviewer
+    assert attempt.evidence["candidate_ids"] == [work.pk]
+    assert attempt.evidence["assessments"][0]["classification"] == "likely_duplicate"
+    assert original.description not in str(attempt.evidence)
+    response = client.get(detail)
+    assert b"Likely duplicate" in response.content
+    assert b"View matching signals" in response.content
+    original.description = "A broken street lamp"
+    original.save(update_fields=("description",))
+    response = client.get(detail)
+    assert b"Run the assessment again" in response.content
+    assert b"Likely duplicate" not in response.content
+
+
+def test_advisory_matching_requires_opt_in_and_policy(
+    client: Client,
+    make_employee: Callable[..., Employee],
+    make_work_item: Callable[..., WorkItem],
+    clear_configuration_cache: None,
+) -> None:
+    """Disabled or unconfigured matching cannot produce a success-shaped result."""
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    client.force_login(reviewer.user)
+    work = make_work_item()
+    submission = ReportSubmission.objects.create(
+        description="A pothole",
+        updates_requested=False,
+        triage_state="NEEDS_REVIEW",
+        latitude=work.latitude,
+        longitude=work.longitude,
+    )
+    url = reverse("intake:assess_duplicates", args=[submission.pk])
+    assert client.post(url).status_code == 403
+    configuration, _ = SiteConfiguration.objects.update_or_create(
+        pk=1, defaults={"duplicate_matching_enabled": True}
+    )
+    response = client.post(url, follow=True)
+    assert b"active duplicate-search policy" in response.content
+    assert not submission.triage_attempts.exists()
+    configuration.duplicate_matching_enabled = False
+    configuration.save(update_fields=("duplicate_matching_enabled",))
+    assert client.post(url).status_code == 403
+
+
+def test_matching_failure_keeps_manual_search_available(
+    client: Client,
+    make_employee: Callable[..., Employee],
+    make_work_item: Callable[..., WorkItem],
+    clear_configuration_cache: None,
+) -> None:
+    """Unexpected matching failures do not block a reviewer or mutate the report."""
+    SiteConfiguration.objects.update_or_create(
+        pk=1, defaults={"duplicate_matching_enabled": True}
+    )
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    client.force_login(reviewer.user)
+    work = make_work_item()
+    submission = ReportSubmission.objects.create(
+        description="A pothole",
+        updates_requested=False,
+        triage_state="NEEDS_REVIEW",
+        latitude=work.latitude,
+        longitude=work.longitude,
+    )
+    with patch("intake.views.assess_duplicates", side_effect=RuntimeError("failed")):
+        response = client.post(
+            reverse("intake:assess_duplicates", args=[submission.pk]), follow=True
+        )
+    assert b"Matching could not be completed" in response.content
+    assert b"Look up another work item" in response.content
+    submission.refresh_from_db()
+    assert submission.triage_state == "NEEDS_REVIEW"
+    assert submission.work_item_id is None

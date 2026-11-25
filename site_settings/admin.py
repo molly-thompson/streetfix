@@ -23,6 +23,7 @@ class SiteConfigurationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
                 )
             },
         ),
+        ("Report review", {"fields": ("duplicate_matching_enabled",)}),
         (
             "Public report tracking",
             {"fields": ("public_tracking_enabled", "public_tracking_max_reports")},

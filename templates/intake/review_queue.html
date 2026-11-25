@@ -1,86 +1,96 @@
 {% extends "base.html" %}
 
-{% block title %}Triage dashboard · {{ site_name }}{% endblock title %}
+{% load static %}
+
+{% block title %}Review reports · {{ site_name }}{% endblock title %}
+{% block extra_head %}
+  <link href="{% static 'css/triage.css' %}" rel="stylesheet">
+{% endblock extra_head %}
 
 {% block content %}
-  <h1>Triage dashboard</h1>
-  <p>Review incoming reports and make the final decision. Urgent reports appear first.</p>
-  <section class="ui-card" aria-label="Queue summary">
-    <div class="ui-card__body ui-cluster">
+  <div class="triage-dashboard">
+    <header class="triage-heading">
       <div>
-        <strong>{{ queue_totals.total }}</strong>
-        <br>
-        Reports in the queue
+        <p class="triage-kicker">Triage dashboard</p>
+        <h1>Review reports</h1>
+        <p>Work through incoming reports, with urgent reviews first.</p>
       </div>
-      <div>
-        <strong>{{ queue_totals.urgent }}</strong>
-        <br>
-        Flagged for urgent review
-      </div>
-      <div>
-        <strong>{{ queue_totals.processing }}</strong>
-        <br>
-        Awaiting rules processing
-      </div>
-    </div>
-  </section>
-  {% if engine_mode == "shadow" %}
-    <p>Decision support is in shadow mode. Assessments are not shown to reviewers.</p>
-  {% elif engine_mode == "review" %}
-    <p>Decision support is available on reports awaiting review. Suggestions never replace your decision.</p>
-  {% else %}
-    <p>Decision support is disabled. Reports remain available for human review.</p>
-  {% endif %}
-  <p><a href="{% url 'intake:finalized_reports' %}">Review rejected or duplicate reports</a></p>
-  {% if submissions %}
-    <div class="ui-table-wrap">
-      <table class="ui-table">
-        <caption class="ui-text-left">Reports awaiting review</caption>
-        <thead>
-          <tr>
-            <th scope="col">Report</th>
-            <th scope="col">Issue</th>
-            <th scope="col">Received</th>
-            <th scope="col">Status</th>
-            <th scope="col">Assessment</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for submission in submissions %}
-            <tr>
-              <td>
-                <a href="{% url 'intake:review_detail' submission.pk %}">Report {{ submission.pk }}</a>
-                {% if submission.queue_urgent %}<strong>Urgent review</strong>{% endif %}
-              </td>
-              <td>{{ submission.reported_issue_type|default:"Not specified" }}</td>
-              <td>{{ submission.submitted_at }}</td>
-              <td>{{ submission.get_triage_state_display }}</td>
-              <td>
-                {% if submission.engine_job_status == "PENDING" %}Queued
-                {% elif submission.engine_job_status == "PROCESSING" %}Processing
-                {% elif submission.engine_job_status == "COMPLETED" %}Completed
-                {% elif submission.engine_job_status == "FAILED" %}Failed
-          {% else %}Not requested{% endif %}
-            </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if is_paginated %}
-      <nav aria-label="Report pages">
-        <ul class="ui-pagination">
-          {% if page_obj.has_previous %}
-            <li><a href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
-          {% endif %}
-          <li><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
-          {% if page_obj.has_next %}
-            <li><a href="?page={{ page_obj.next_page_number }}">Next</a></li>
-          {% endif %}
-        </ul>
-      </nav>
+      <a
+        class="ui-button ui-button--secondary"
+        href="{% url 'intake:finalized_reports' %}"
+      >Review past decisions</a>
+    </header>
+
+    <section class="triage-summary" aria-label="Queue summary">
+      <div><span>Awaiting review</span><strong>{{ queue_counts.total }}</strong></div>
+      <div><span>Urgent review</span><strong>{{ queue_counts.urgent }}</strong></div>
+      <div><span>Ready for review</span><strong>{{ queue_counts.ready }}</strong></div>
+      <div><span>Processing pending</span><strong>{{ queue_counts.processing }}</strong></div>
+    </section>
+
+    {% if engine_mode == "shadow" %}
+      <p>Decision support is in shadow mode. Assessments are not shown to reviewers.</p>
+    {% elif engine_mode == "review" %}
+      <p>Decision support is available on reports awaiting review. Suggestions never replace your decision.</p>
+    {% else %}
+      <p>Decision support is disabled. Reports remain available for human review.</p>
     {% endif %}
-  {% else %}
-    <p>No reports are awaiting review.</p>
-  {% endif %}
+
+    <section class="triage-panel">
+      <div class="triage-panel-heading">
+        <div>
+          <h2>Reports awaiting review</h2>
+          <p>Open a report to check its evidence and decide what happens next.</p>
+        </div>
+      </div>
+      {% if submissions %}
+        <div class="ui-table-wrap">
+          <table class="ui-table triage-table">
+            <caption class="ui-visually-hidden">Reports awaiting review</caption>
+            <thead>
+              <tr>
+                <th scope="col">Report</th>
+                <th scope="col">Issue</th>
+                <th scope="col">Received</th>
+                <th scope="col">Status</th>
+                <th scope="col">Assessment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for submission in submissions %}
+                <tr>
+                  <td>
+                    <a
+                      class="triage-report-link"
+                      href="{% url 'intake:review_detail' submission.pk %}"
+                    >Report {{ submission.pk }}</a>
+                    {% if submission.queue_urgent %}<span class="triage-urgent">Urgent review</span>{% endif %}
+                  </td>
+                  <td>{{ submission.reported_issue_type|default:"Not specified" }}</td>
+                  <td>{{ submission.submitted_at }}</td>
+                  <td>{{ submission.get_triage_state_display }}</td>
+                  <td>
+                    {% if submission.engine_job_status == "PENDING" %}Queued
+                    {% elif submission.engine_job_status == "PROCESSING" %}Processing
+                    {% elif submission.engine_job_status == "COMPLETED" %}Completed
+                    {% elif submission.engine_job_status == "FAILED" %}Failed
+              {% else %}Not requested{% endif %}
+                </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if is_paginated %}
+          <nav class="triage-pagination" aria-label="Report pages">
+            {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+            <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+          </nav>
+        {% endif %}
+      {% else %}
+        <p class="triage-empty">No reports are awaiting review.</p>
+      {% endif %}
+    </section>
+  </div>
 {% endblock content %}
