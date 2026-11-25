@@ -36,6 +36,7 @@ class ProviderResponse(BytesIO):
         self.headers = {"Content-Length": str(len(content))}
 
 
+@pytest.mark.django_db(transaction=True, serialized_rollback=True)
 def test_photo_proxy_checks_permissions_and_streams_without_redirect(
     client: Client, make_employee: Callable[..., Employee]
 ) -> None:
@@ -141,6 +142,7 @@ def test_provider_redirect_to_another_host_is_not_opened() -> None:
     opener.assert_not_called()
 
 
+@pytest.mark.django_db(transaction=True, serialized_rollback=True)
 def test_current_assignees_can_view_photos_but_lose_access_when_released(
     client: Client,
     make_employee: Callable[..., Employee],

@@ -6,24 +6,18 @@ other callers do not have to.
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Case, Exists, IntegerField, OuterRef, QuerySet, When
+from django.db.models import Exists, F, OuterRef, QuerySet
 
 from .organisation_models import Department, Employee
 from .work_models import WorkAssignment, WorkItem, WorkItemStatus
 
-ENDED_STATUSES = ("CLOSED", "CANCELLED")
-NOT_YET_TRIAGED = ("SUBMITTED",)
-PRIORITY_RANK = {"CRITICAL": 0, "HIGH": 1, "NORMAL": 2, "LOW": 3}
-URGENCY_RANK = {"EMERGENCY": 0, "URGENT": 1, "SOON": 2, "ROUTINE": 3}
+PRIORITY_RANK_FIELD = "priority__rank"
+URGENCY_RANK_FIELD = "urgency__rank"
 
 
-def _rank(field: str, ranks: dict[str, int]) -> Case:
-    """Order option codes by a fixed rank, unknown codes last."""
-    return Case(
-        *(When(**{field: code}, then=rank) for code, rank in ranks.items()),
-        default=len(ranks),
-        output_field=IntegerField(),
-    )
+def _rank(field: str) -> F:
+    """Order lookup rows by their database rank."""
+    return F(field)
 
 
 def dispatchable_work(department: Department) -> QuerySet[WorkItem]:
@@ -38,12 +32,13 @@ def dispatchable_work(department: Department) -> QuerySet[WorkItem]:
     )
     return (
         WorkItem.objects.filter(issue_type__department=department)
-        .exclude(status__code__in=ENDED_STATUSES + NOT_YET_TRIAGED)
+        .exclude(status__is_ended=True)
+        .exclude(status__is_not_yet_triaged=True)
         .select_related("issue_type", "priority", "urgency", "status")
         .annotate(
             has_case_officer=Exists(open_case_officer),
-            priority_rank=_rank("priority__code", PRIORITY_RANK),
-            urgency_rank=_rank("urgency__code", URGENCY_RANK),
+            priority_rank=_rank(PRIORITY_RANK_FIELD),
+            urgency_rank=_rank(URGENCY_RANK_FIELD),
         )
         .order_by("priority_rank", "urgency_rank", "created_at")
     )
@@ -54,9 +49,9 @@ def _status(code: str) -> WorkItemStatus:
 
 
 def _check_can_dispatch(work_item: WorkItem) -> None:
-    if work_item.status.code in NOT_YET_TRIAGED:
+    if work_item.status.is_not_yet_triaged:
         raise ValidationError("Triage this work item before assigning it.")
-    if work_item.status.code in ENDED_STATUSES:
+    if work_item.status.is_ended:
         raise ValidationError(f"{work_item.status.label} work cannot be assigned.")
 
 
@@ -81,7 +76,7 @@ def assign_work(
         assigned_by=dispatcher,
         reason=reason,
     )
-    if case_officer and work_item.status.code == "TRIAGED":
+    if case_officer and work_item.status.is_triaged:
         work_item.transition_to(
             _status("ASSIGNED"),
             changed_by=dispatcher,
@@ -112,7 +107,7 @@ def remove_from_work(
     if (
         assignment.is_case_officer
         and not still_has_case_officer
-        and work_item.status.code == "ASSIGNED"
+        and work_item.status.is_assigned
     ):
         work_item.transition_to(
             _status("TRIAGED"),

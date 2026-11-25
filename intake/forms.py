@@ -111,13 +111,13 @@ class ReportSubmissionForm(forms.Form):
         for field in self.fields.values():
             widget = field.widget
             if isinstance(widget, forms.CheckboxInput):
-                widget.attrs["class"] = "uk-checkbox"
+                widget.attrs["class"] = "ui-checkbox"
             elif isinstance(widget, forms.Select):
-                widget.attrs["class"] = "uk-select"
+                widget.attrs["class"] = "ui-select"
             elif isinstance(widget, forms.Textarea):
-                widget.attrs["class"] = "uk-textarea"
+                widget.attrs["class"] = "ui-textarea"
             else:
-                widget.attrs["class"] = "uk-input"
+                widget.attrs["class"] = "ui-input"
         policy = TriagePolicy.objects.filter(status=TriagePolicy.Status.ACTIVE).first()
         if policy is not None:
             try:
@@ -228,18 +228,18 @@ class LocationCorrectionForm(forms.Form):
         max_value=90,
         max_digits=9,
         decimal_places=6,
-        widget=forms.NumberInput(attrs={"class": "uk-input"}),
+        widget=forms.NumberInput(attrs={"class": "ui-input"}),
     )
     longitude = forms.DecimalField(
         min_value=-180,
         max_value=180,
         max_digits=9,
         decimal_places=6,
-        widget=forms.NumberInput(attrs={"class": "uk-input"}),
+        widget=forms.NumberInput(attrs={"class": "ui-input"}),
     )
     reason = forms.CharField(
         max_length=1000,
-        widget=forms.Textarea(attrs={"rows": 2, "class": "uk-textarea"}),
+        widget=forms.Textarea(attrs={"rows": 2, "class": "ui-textarea"}),
     )
 
 
@@ -249,7 +249,7 @@ class OutOfScopeForm(forms.Form):
     reason = forms.CharField(
         label="Why is this report out of scope?",
         max_length=1000,
-        widget=forms.Textarea(attrs={"rows": 3, "class": "uk-textarea"}),
+        widget=forms.Textarea(attrs={"rows": 3, "class": "ui-textarea"}),
     )
 
 
@@ -259,7 +259,7 @@ class ReopenReportForm(forms.Form):
     reason = forms.CharField(
         label="Why does this report need another review?",
         max_length=1000,
-        widget=forms.Textarea(attrs={"rows": 3, "class": "uk-textarea"}),
+        widget=forms.Textarea(attrs={"rows": 3, "class": "ui-textarea"}),
     )
 
 
@@ -270,7 +270,7 @@ class DuplicateLookupForm(forms.Form):
         label="Work item number",
         min_value=1,
         max_value=9223372036854775807,
-        widget=forms.NumberInput(attrs={"class": "uk-input"}),
+        widget=forms.NumberInput(attrs={"class": "ui-input"}),
     )
 
 
@@ -283,14 +283,14 @@ class DuplicateConfirmationForm(forms.Form):
     reason = forms.CharField(
         label="Why is this the same issue?",
         max_length=1000,
-        widget=forms.Textarea(attrs={"rows": 3, "class": "uk-textarea"}),
+        widget=forms.Textarea(attrs={"rows": 3, "class": "ui-textarea"}),
     )
     confirmed_not_recurrence = forms.BooleanField(
         required=False,
         label=(
             "For resolved work, I confirmed this is the same issue, not a recurrence."
         ),
-        widget=forms.CheckboxInput(attrs={"class": "uk-checkbox"}),
+        widget=forms.CheckboxInput(attrs={"class": "ui-checkbox"}),
     )
 
 
@@ -308,34 +308,34 @@ class AcceptReportForm(forms.Form):
     issue_type = RoutableIssueChoiceField(
         queryset=IssueType.objects.none(),
         label="Issue type and responsible department",
-        widget=forms.Select(attrs={"class": "uk-select"}),
+        widget=forms.Select(attrs={"class": "ui-select"}),
     )
     priority = forms.ModelChoiceField(
         queryset=Priority.objects.none(),
         empty_label="Choose priority",
-        widget=forms.Select(attrs={"class": "uk-select"}),
+        widget=forms.Select(attrs={"class": "ui-select"}),
     )
     urgency = forms.ModelChoiceField(
         queryset=Urgency.objects.none(),
         empty_label="Choose urgency",
-        widget=forms.Select(attrs={"class": "uk-select"}),
+        widget=forms.Select(attrs={"class": "ui-select"}),
     )
     scope_confirmed = forms.BooleanField(
         label="I confirmed this issue is within our responsibility.",
-        widget=forms.CheckboxInput(attrs={"class": "uk-checkbox"}),
+        widget=forms.CheckboxInput(attrs={"class": "ui-checkbox"}),
     )
     not_duplicate_confirmed = forms.BooleanField(
         label="I checked for existing work and confirmed this needs a new work item.",
-        widget=forms.CheckboxInput(attrs={"class": "uk-checkbox"}),
+        widget=forms.CheckboxInput(attrs={"class": "ui-checkbox"}),
     )
     location_confirmed = forms.BooleanField(
         label="I confirmed the map pin is reliable.",
-        widget=forms.CheckboxInput(attrs={"class": "uk-checkbox"}),
+        widget=forms.CheckboxInput(attrs={"class": "ui-checkbox"}),
     )
     reason = forms.CharField(
         label="Reason for these decisions",
         max_length=1000,
-        widget=forms.Textarea(attrs={"rows": 3, "class": "uk-textarea"}),
+        widget=forms.Textarea(attrs={"rows": 3, "class": "ui-textarea"}),
     )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

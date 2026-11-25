@@ -62,8 +62,8 @@
   <form
     id="pending-email"
     action="{% url 'account_email' %}"
+    hidden
     method="post"
-    style="display: none"
   >
     {% csrf_token %}
     <input name="email" type="hidden" value="{{ new_emailaddress.email }}">

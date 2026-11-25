@@ -36,12 +36,12 @@
     while (children.has(parent) && !visited.has(parent)) {
       visited.add(parent);
       const wrapper = document.createElement("div");
-      wrapper.className = "uk-margin";
+      wrapper.className = "ui-field";
       const select = document.createElement("select");
-      select.className = "uk-select";
+      select.className = "ui-select";
       select.id = `issue-path-${depth}`;
       const label = document.createElement("label");
-      label.className = "uk-form-label";
+      label.className = "ui-label";
       label.htmlFor = select.id;
       label.textContent = depth === 0 ? "What is the issue about?" : "Choose a more specific issue";
       const placeholder = document.createElement("option");

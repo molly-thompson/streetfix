@@ -18,23 +18,28 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from .dispatch import PRIORITY_RANK, URGENCY_RANK, _rank, _status
+from site_settings.configuration import get_site_configuration
+
+from .dispatch import PRIORITY_RANK_FIELD, URGENCY_RANK_FIELD, _rank, _status
 from .organisation_models import Employee
-from .work_models import WorkItem, WorkItemComment, WorkItemPhoto, WorkItemReport
+from .work_models import (
+    VisitOutcome,
+    WorkItem,
+    WorkItemComment,
+    WorkItemPhoto,
+    WorkItemReport,
+)
+
+NO_PHOTO_REASON_MIN_LENGTH = 15
+
+
+def no_photo_reason_min_length() -> int:
+    """Return the configured minimum no-photo explanation length."""
+    return get_site_configuration().no_photo_reason_min_length
+
 
 # Work an officer can still act on. Anything else is paused, finished or
 # waiting on a manager.
-ACTIVE_STATUSES = ("ASSIGNED", "IN_PROGRESS")
-NO_PHOTO_REASON_MIN_LENGTH = 15
-
-# Where each visit outcome leaves the work item.
-OUTCOME_STATUS = {
-    WorkItemReport.Outcome.FIXED: "RESOLVED",
-    WorkItemReport.Outcome.NO_FAULT_FOUND: "RESOLVED",
-    WorkItemReport.Outcome.TEMPORARY_FIX: "ON_HOLD",
-    WorkItemReport.Outcome.FURTHER_WORK: "ON_HOLD",
-    WorkItemReport.Outcome.NO_ACCESS: "ON_HOLD",
-}
 
 
 def my_work(employee: Employee) -> QuerySet[WorkItem]:
@@ -43,12 +48,12 @@ def my_work(employee: Employee) -> QuerySet[WorkItem]:
         WorkItem.objects.filter(
             assignments__employee=employee,
             assignments__unassigned_at__isnull=True,
-            status__code__in=ACTIVE_STATUSES,
+            status__is_officer_active=True,
         )
         .select_related("issue_type", "priority", "urgency", "status")
         .annotate(
-            priority_rank=_rank("priority__code", PRIORITY_RANK),
-            urgency_rank=_rank("urgency__code", URGENCY_RANK),
+            priority_rank=_rank(PRIORITY_RANK_FIELD),
+            urgency_rank=_rank(URGENCY_RANK_FIELD),
         )
         .order_by("priority_rank", "urgency_rank", "created_at")
         .distinct()
@@ -85,7 +90,7 @@ def _check_case_officer(work_item: WorkItem, employee: Employee) -> None:
 def arrive(work_item: WorkItem, employee: Employee) -> WorkItemReport:
     """Record that the case officer has arrived on site."""
     _check_case_officer(work_item, employee)
-    if work_item.status.code != "ASSIGNED":
+    if not work_item.status.is_assigned:
         raise ValidationError("You can only arrive at assigned work.")
     report = draft_report(work_item, employee) or WorkItemReport(
         work_item=work_item, employee=employee
@@ -106,7 +111,7 @@ def _store_photo(work_item_id: int, image: UploadedFile[Any]) -> str:
         try:
             result = cloudinary.uploader.upload(
                 image,
-                folder=f"streetfix/work-photos/{work_item_id}",
+                folder=f"{settings.OFFICER_PHOTO_FOLDER}/{work_item_id}",
                 resource_type="image",
             )
         except cloudinary.exceptions.Error as error:
@@ -142,14 +147,15 @@ def start_work(
     """Start work once there is a before photo, or a reason there is none."""
     work_item = report.work_item
     _check_case_officer(work_item, employee)
-    if work_item.status.code != "ASSIGNED":
+    if not work_item.status.is_assigned:
         raise ValidationError("This work has already started.")
     reason = no_photo_reason.strip()
     if not report.has_before_photo():
-        if len(reason) < NO_PHOTO_REASON_MIN_LENGTH:
+        minimum = get_site_configuration().no_photo_reason_min_length
+        if len(reason) < minimum:
             raise ValidationError(
                 "Take a before photo, or explain why you can't "
-                f"(at least {NO_PHOTO_REASON_MIN_LENGTH} characters)."
+                f"(at least {minimum} characters)."
             )
         report.no_before_photo_reason = reason
         report.save(update_fields=("no_before_photo_reason",))
@@ -167,8 +173,20 @@ def submit_report(report: WorkItemReport, employee: Employee) -> None:
         raise ValidationError("Start the work before reporting on it.")
     report.submit()
     outcome = WorkItemReport.Outcome(report.outcome)
+    configured = VisitOutcome.objects.filter(code=outcome.value, active=True).first()
+    target_status_code = (
+        configured.target_status_code
+        if configured is not None
+        else {
+            WorkItemReport.Outcome.FIXED: "RESOLVED",
+            WorkItemReport.Outcome.NO_FAULT_FOUND: "RESOLVED",
+            WorkItemReport.Outcome.TEMPORARY_FIX: "ON_HOLD",
+            WorkItemReport.Outcome.FURTHER_WORK: "ON_HOLD",
+            WorkItemReport.Outcome.NO_ACCESS: "ON_HOLD",
+        }[outcome]
+    )
     work_item.transition_to(
-        _status(OUTCOME_STATUS[outcome]),
+        _status(target_status_code),
         changed_by=employee,
         notes=f"Visit report: {outcome.label}",
     )

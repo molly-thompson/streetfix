@@ -7,7 +7,7 @@
   <h1>Rejected and duplicate reports</h1>
   <p>Select a report to review its decision. Accepted work must be handled through the work process.</p>
   {% if submissions %}
-    <ul class="uk-list uk-list-divider">
+    <ul class="ui-list ui-list--divided">
       {% for submission in submissions %}
         <li>
           <a href="{% url 'intake:reopen_report' submission.pk %}">Report {{ submission.pk }}</a>
@@ -17,7 +17,7 @@
     </ul>
     {% if is_paginated %}
       <nav aria-label="Report pages">
-        <ul class="uk-pagination">
+        <ul class="ui-pagination">
           {% if page_obj.has_previous %}
             <li><a href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
           {% endif %}

@@ -16,16 +16,16 @@
   <p>Tell us what happened and where. You can submit a report without giving your name.</p>
   <p>This service is not an emergency service. If anyone is in immediate danger, contact your local emergency service.</p>
   <p><a href="{% url 'intake:form_intake' %}">Prefer to chat? Report it in the chat instead.</a></p>
-  <form class="uk-form-stacked" method="post">
+  <form class="ui-form ui-stack" method="post">
     {% csrf_token %}
     {% if form.errors %}
-      <div class="uk-alert-danger" role="alert" tabindex="-1">
+      <div class="ui-alert ui-alert--danger" role="alert" tabindex="-1">
         <p>Check the details below and try again.</p>
         {{ form.non_field_errors }}
       </div>
     {% endif %}
-    <fieldset class="uk-fieldset">
-      <legend class="uk-legend">The issue</legend>
+    <fieldset class="ui-fieldset">
+      <legend class="ui-legend">The issue</legend>
       <div id="issue-path"></div>
       {% include "intake/_report_field.html" with field=form.reported_issue_type %}
       {% include "intake/_report_field.html" with field=form.other_selected %}
@@ -36,8 +36,8 @@
       <p>Answer the following question only if it applies to the selected issue.</p>
       {% include "intake/_report_field.html" with field=form.reported_sensitive_content %}
     </fieldset>
-    <fieldset class="uk-fieldset">
-      <legend class="uk-legend">Location</legend>
+    <fieldset class="ui-fieldset">
+      <legend class="ui-legend">Location</legend>
       <p>Describe the location or enter both coordinates if you know them.</p>
       {% include "intake/_report_field.html" with field=form.location_description %}
 
@@ -48,7 +48,7 @@
           class="report-map"
           aria-label="Map for choosing a location"
         ></div>
-        <p class="uk-text-meta">
+        <p class="ui-help">
           {% if intake_demo %}
             <a href="https://www.openstreetmap.org/copyright">{{ map_attribution }}</a>
           {% else %}
@@ -56,26 +56,30 @@
           {% endif %}
         </p>
         <p id="map-status" aria-live="polite"></p>
-        <button id="clear-map-pin" class="uk-button uk-button-default" type="button">Clear map pin</button>
+        <button
+          id="clear-map-pin"
+          class="ui-button ui-button--secondary"
+          type="button"
+        >Clear map pin</button>
       {% endif %}
       {% include "intake/_report_field.html" with field=form.latitude %}
       {% include "intake/_report_field.html" with field=form.longitude %}
     </fieldset>
-    <fieldset id="photo-section" class="uk-fieldset">
-      <legend class="uk-legend">Photos</legend>
+    <fieldset id="photo-section" class="ui-fieldset">
+      <legend class="ui-legend">Photos</legend>
       {% if photos_enabled %}
         <p>You can add up to three photos (JPEG, PNG, WebP or HEIC, each under 10 MB). Only the team reviewing your report can see them.</p>
         <div data-photo-upload hidden>
-          <label class="uk-form-label" for="photo-files">Choose photos</label>
+          <label class="ui-label" for="photo-files">Choose photos</label>
           <input
             id="photo-files"
-            class="uk-input"
+            class="ui-input"
             accept="image/jpeg,image/png,image/webp,image/heic"
             aria-describedby="photo-status"
             multiple
             type="file"
           >
-          <ul id="photo-list" class="uk-list">
+          <ul id="photo-list" class="ui-list">
           </ul>
         </div>
         <noscript>
@@ -85,14 +89,14 @@
         {{ form.photo_draft }}
         {{ form.photo_slots }}
         {% if form.photo_slots.errors %}
-          <div class="uk-text-danger" role="alert">{{ form.photo_slots.errors }}</div>
+          <div class="ui-error" role="alert">{{ form.photo_slots.errors }}</div>
         {% endif %}
       {% else %}
         <p>Photo uploads are not available.</p>
       {% endif %}
     </fieldset>
-    <fieldset id="contact-section" class="uk-fieldset">
-      <legend class="uk-legend">Contact details</legend>
+    <fieldset id="contact-section" class="ui-fieldset">
+      <legend class="ui-legend">Contact details</legend>
       <p>These details are optional unless you request updates.</p>
       {% include "intake/_report_field.html" with field=form.updates_requested %}
 
@@ -104,7 +108,7 @@
         {% include "intake/_report_field.html" with field=form.address %}
       </div>
     </fieldset>
-    <button id="send-report" class="uk-button uk-button-primary" type="submit">Send report</button>
+    <button id="send-report" class="ui-button" type="submit">Send report</button>
   </form>
 {% endblock content %}
 

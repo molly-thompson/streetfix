@@ -75,7 +75,7 @@ def test_invalid_active_policy_fails_closed_to_review() -> None:
     TriagePolicyRule.objects.create(
         policy=policy,
         name="Invalid",
-        impact="NOT_A_SCALE_VALUE",
+        impact="NOT_A_VALUE",
         target="PRIORITY",
         outcome_code="HIGH",
     )

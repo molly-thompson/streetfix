@@ -29,12 +29,14 @@ from employees.organisation_models import IssueType
 from employees.work_models import WorkItem
 from intake.models import (
     ContactMethod,
+    IssueCategory,
     Reporter,
     ReportSubmission,
     TriageAttempt,
 )
 from intake.services.reference import submission_for_reference
 from intake.services.submission import submit_report
+from site_settings.configuration import get_site_configuration
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +45,8 @@ UK_POSTCODE = re.compile(r"^([A-Z]{1,2}\d[A-Z\d]?) ?(\d[A-Z]{2})$")
 
 # A report counts as a possible duplicate of an open job of the same issue
 # type this close by, reported this recently.
-DUPLICATE_RADIUS_KM = 0.2
-DUPLICATE_WINDOW_DAYS = 30
 FINISHED_STATUSES = ("RESOLVED", "CLOSED", "CANCELLED")
-POSTCODE_CACHE_SECONDS = 60 * 60 * 24
 MAX_CHAT_PHOTOS = 1
-
-# Chat category key -> code of the issue type it reports. Departments, names and
-# availability come from the issue types configured in the database.
-CHAT_ISSUE_CODES: dict[str, str] = {
-    "pothole": "POTHOLE",
-    "sign": "DAMAGED_SIGN",
-    "drain": "BLOCKED_DRAIN",
-    "flytip": "FLY_TIPPING",
-    "graffiti": "GRAFFITI",
-    "light": "STREETLIGHT",
-    "parks": "PARKS_TREES",
-    "other": "OTHER",
-}
 
 # Chat priority levels follow the brief's SLA table.
 PRIORITY_CODES = {
@@ -94,6 +80,8 @@ class ChatReport:
     """A validated report from the chat."""
 
     category: str
+    issue_type_id: int | None
+    other_selected: bool
     sub_issue: str
     description: str
     category_source: str
@@ -138,6 +126,20 @@ def _uuid(value: Any) -> UUID | None:
         return None
 
 
+def parse_issue_type_id(value: Any) -> int:
+    """Validate an issue identifier without coercing floats or overflowing the DB."""
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        raise ValidationError("This kind of report is not available right now.")
+    if isinstance(value, str) and (
+        len(value) > 19 or not (value.isascii() and value.isdecimal())
+    ):
+        raise ValidationError("This kind of report is not available right now.")
+    issue_type_id = int(value)
+    if not 0 < issue_type_id <= 9223372036854775807:
+        raise ValidationError("This kind of report is not available right now.")
+    return issue_type_id
+
+
 def parse_report(body: bytes) -> ChatReport:
     """Validate the chat's JSON and return a report.
 
@@ -158,8 +160,22 @@ def parse_report(body: bytes) -> ChatReport:
     ):
         raise ValidationError("The report could not be read.")
 
-    category = _text(case.get("category"), 20)
-    if _offered_issue_type(category) is None:
+    category = _text(case.get("category"), 40)
+    issue_type_id = None
+    other_selected = case.get("other_selected") is True
+    if "issue_type_id" in case:
+        raw_issue_type_id = case["issue_type_id"]
+        if "other_selected" in case and not isinstance(case["other_selected"], bool):
+            raise ValidationError("Choose an issue or select Other.")
+        if raw_issue_type_id is not None:
+            if other_selected:
+                raise ValidationError("This kind of report is not available right now.")
+            issue_type_id = parse_issue_type_id(raw_issue_type_id)
+            if _offered_issue_type_id(issue_type_id) is None:
+                raise ValidationError("This kind of report is not available right now.")
+        elif not other_selected:
+            raise ValidationError("Choose an issue or select Other.")
+    elif _offered_issue_type(category) is None:
         category = "other"
     priority = _text(case.get("priority_suggested"), 10)
     if priority not in PRIORITY_CODES:
@@ -184,6 +200,8 @@ def parse_report(body: bytes) -> ChatReport:
 
     return ChatReport(
         category=category,
+        issue_type_id=issue_type_id,
+        other_selected=other_selected,
         sub_issue=_text(case.get("sub_issue"), 200),
         description=_text(case.get("description"), 1000),
         category_source=_text(case.get("category_source"), 60),
@@ -211,20 +229,34 @@ def parse_report(body: bytes) -> ChatReport:
 
 
 def _offered_issue_type(category: str) -> IssueType | None:
-    """Find the routable issue type behind a chat category, if it is offered."""
-    code = CHAT_ISSUE_CODES.get(category)
-    if code is None:
+    """Resolve legacy chat category keys through their configured mapping."""
+    category_config = (
+        IssueCategory.objects.filter(code=category, active=True)
+        .select_related("issue_type")
+        .first()
+    )
+    if category_config is None or category_config.issue_type_id is None:
         return None
+    return _offered_issue_type_id(category_config.issue_type_id)
+
+
+def _offered_issue_type_id(issue_type_id: int) -> IssueType | None:
     return IssueType.objects.filter(
-        code=code,
+        pk=issue_type_id,
         kind=IssueType.Kind.ISSUE,
         department__isnull=False,
         active=True,
     ).first()
 
 
-def _issue_type(category: str) -> IssueType:
-    issue_type = _offered_issue_type(category)
+def _issue_type(report: ChatReport) -> IssueType | None:
+    if report.other_selected and report.issue_type_id is None:
+        return None
+    issue_type = (
+        _offered_issue_type_id(report.issue_type_id)
+        if report.issue_type_id is not None
+        else _offered_issue_type(report.category)
+    )
     if issue_type is None:
         raise ValidationError("This kind of report is not available right now.")
     return issue_type
@@ -252,33 +284,47 @@ def locate(postcode: str) -> tuple[Decimal, Decimal] | None:
         logger.warning("Postcode lookup failed for %s", postcode)
         return None
     cache.set(
-        cache_key, (str(coordinates[0]), str(coordinates[1])), POSTCODE_CACHE_SECONDS
+        cache_key,
+        (str(coordinates[0]), str(coordinates[1])),
+        get_site_configuration().postcode_cache_seconds,
     )
     return coordinates
 
 
-def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
+def nearby_open_work(
+    category: str, postcode: str, *, issue_type_id: int | None = None
+) -> WorkItem | None:
     """Return the closest open work item that may be the same problem.
 
-    Matches the same issue type within ``DUPLICATE_RADIUS_KM`` of the
-    postcode, reported in the last ``DUPLICATE_WINDOW_DAYS``. Work items
+    Matches the same issue type within the configured duplicate radius of the
+    postcode, reported in the configured duplicate window. Work items
     pinned at the depot (location unknown) are never matched, because their
     pin is not where the problem is.
     """
-    if category not in CHAT_ISSUE_CODES:
+    issue_type = (
+        _offered_issue_type_id(issue_type_id)
+        if issue_type_id is not None
+        else _offered_issue_type(category)
+    )
+    if issue_type is None:
         return None
     coordinates = locate(postcode)
     if coordinates is None:
         return None
     lat, lng = float(coordinates[0]), float(coordinates[1])
-    depot = settings.FIELD_DEPOT
-    margin = Decimal("0.005")  # about 500 m: cheap pre-filter before exact distance
+    configuration = get_site_configuration()
+    depot = {
+        "lat": float(configuration.depot_latitude),
+        "lng": float(configuration.depot_longitude),
+        "name": configuration.depot_name,
+    }
+    margin = configuration.duplicate_radius_km / Decimal("110")
     candidates = (
         WorkItem.objects.filter(
-            issue_type__code=CHAT_ISSUE_CODES[category],
-            created_at__gte=timezone.now() - timedelta(days=DUPLICATE_WINDOW_DAYS),
+            issue_type=issue_type,
+            created_at__gte=timezone.now()
+            - timedelta(days=configuration.duplicate_window_days),
             latitude__range=(coordinates[0] - margin, coordinates[0] + margin),
-            longitude__range=(coordinates[1] - margin, coordinates[1] + margin),
         )
         .exclude(status__code__in=FINISHED_STATUSES)
         .exclude(
@@ -289,7 +335,9 @@ def nearby_open_work(category: str, postcode: str) -> WorkItem | None:
     best: tuple[float, WorkItem] | None = None
     for item in candidates:
         distance = distance_km(lat, lng, float(item.latitude), float(item.longitude))
-        if distance <= DUPLICATE_RADIUS_KM and (best is None or distance < best[0]):
+        if distance <= float(configuration.duplicate_radius_km) and (
+            best is None or distance < best[0]
+        ):
             best = (distance, item)
     return best[1] if best else None
 
@@ -340,7 +388,7 @@ def submit_chat_report(
     report: ChatReport, *, session_key: str = ""
 ) -> ReportSubmission:
     """Save a chat report for review, with its suggestions kept as evidence."""
-    issue_type = _issue_type(report.category)
+    issue_type = _issue_type(report)
     latitude, longitude = report.latitude, report.longitude
     if latitude is None and report.postcode:
         found = locate(report.postcode)
@@ -354,8 +402,11 @@ def submit_chat_report(
             reporter=reporter,
             contact_method=method,
             updates_requested=reporter is not None,
-            description=_submission_text(report, issue_type.name, latitude is not None),
+            description=_submission_text(
+                report, issue_type.name if issue_type else "Other", latitude is not None
+            ),
             reported_issue_type=issue_type,
+            other_selected=report.other_selected,
             location_description=report.location_description,
             reported_time_sensitivity=time_sensitivity,
             latitude=latitude,

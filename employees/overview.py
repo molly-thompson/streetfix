@@ -7,17 +7,15 @@ from typing import Any
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 from django.utils import timezone
 
+from site_settings.configuration import get_site_configuration
+
 from .organisation_models import Department, Employee
 from .work_models import Priority, Urgency, WorkAssignment, WorkItem, WorkItemStatus
-
-WAITING_TOO_LONG = timedelta(days=7)
-PAUSED = ("AWAITING_INFORMATION", "AWAITING_PARTS", "ON_HOLD")
-ENDED = ("CLOSED", "CANCELLED")
 
 # Stages of work the dispatch page can list on their own, by ?stage= value.
 STAGE_FILTERS = {
     "in_progress": ("IN_PROGRESS",),
-    "paused": PAUSED,
+    "paused": ("AWAITING_INFORMATION", "AWAITING_PARTS", "ON_HOLD"),
     "resolved": ("RESOLVED",),
 }
 
@@ -80,8 +78,10 @@ def _department_work(
 
 def _unassigned(department: Department) -> QuerySet[WorkItem]:
     """Return triaged, unfinished work with no case officer."""
-    return _department_work(department, with_case_officer=False).exclude(
-        status__code__in=ENDED + ("SUBMITTED",)
+    return (
+        _department_work(department, with_case_officer=False)
+        .exclude(status__is_ended=True)
+        .exclude(status__is_not_yet_triaged=True)
     )
 
 
@@ -94,7 +94,7 @@ def urgent_unassigned(department: Department, limit: int = 5) -> list[WorkItem]:
     """Return critical or emergency work with no case officer, oldest first."""
     return list(
         _unassigned(department)
-        .filter(Q(priority__code="CRITICAL") | Q(urgency__code="EMERGENCY"))
+        .filter(Q(priority__is_urgent=True) | Q(urgency__is_emergency=True))
         .select_related("issue_type", "priority", "urgency")
         .order_by("created_at")[:limit]
     )
@@ -143,63 +143,68 @@ def job_flow(department: Department) -> list[Stage]:
         ),
         stage("ASSIGNED", "employees:dispatch"),
         Stage(
-            labels.get("IN_PROGRESS", "IN_PROGRESS"),
-            work.filter(status__code="IN_PROGRESS").count(),
+            "In progress",
+            work.filter(status__is_officer_active=True).count(),
             "employees:dispatch",
             query="stage=in_progress",
         ),
         Stage(
             "Paused",
-            work.filter(status__code__in=PAUSED).count(),
+            work.filter(status__is_paused=True).count(),
             "employees:dispatch",
             query="stage=paused",
         ),
         Stage(
-            labels.get("RESOLVED", "RESOLVED"),
-            work.filter(status__code="RESOLVED").count(),
+            "Resolved",
+            work.filter(status__is_awaiting_review=True).count(),
             "employees:dispatch",
             query="stage=resolved",
         ),
         Stage(
             "Closed today",
-            work.filter(status__code="CLOSED", ended_at__gte=_start_of_today()).count(),
+            work.filter(status__is_ended=True, ended_at__gte=_start_of_today()).count(),
         ),
     ]
 
 
 def needs_attention(department: Department) -> list[Stage]:
     """Count the exceptions a manager should look at."""
-    work = _department_work(department).exclude(status__code__in=ENDED)
+    work = _department_work(department).exclude(status__is_ended=True)
     unassigned = _unassigned(department)
     labels = _status_labels()
-    paused = [labels.get(code, code).lower() for code in PAUSED]
+    paused = list(
+        WorkItemStatus.objects.filter(is_paused=True).values_list("label", flat=True)
+    )
     resolved = labels.get("RESOLVED", "RESOLVED")
     closed = labels.get("CLOSED", "CLOSED").lower()
     return [
         Stage(
             urgent_heading(),
             unassigned.filter(
-                Q(priority__code="CRITICAL") | Q(urgency__code="EMERGENCY")
+                Q(priority__is_urgent=True) | Q(urgency__is_emergency=True)
             ).count(),
             "employees:dispatch",
             "danger",
         ),
         Stage(
             "Waiting over a week for a case officer",
-            unassigned.filter(created_at__lt=timezone.now() - WAITING_TOO_LONG).count(),
+            unassigned.filter(
+                created_at__lt=timezone.now()
+                - timedelta(days=get_site_configuration().waiting_too_long_days)
+            ).count(),
             "employees:dispatch",
             "warning",
         ),
         Stage(
             f"Paused ({', '.join(paused[:-1])} or {paused[-1]})",
-            work.filter(status__code__in=PAUSED).count(),
+            work.filter(status__is_paused=True).count(),
             "employees:dispatch",
             tone="warning",
             query="stage=paused",
         ),
         Stage(
             f"{resolved}, waiting to be {closed}",
-            work.filter(status__code="RESOLVED").count(),
+            work.filter(status__is_awaiting_review=True).count(),
             "employees:dispatch",
             tone="warning",
             query="stage=resolved",
@@ -211,7 +216,7 @@ def workforce(department: Department) -> list[WorkforceRow]:
     """List the department's active employees and their current work."""
     open_rows = Q(
         work_assignments__unassigned_at__isnull=True,
-    ) & ~Q(work_assignments__work_item__status__code__in=ENDED)
+    ) & ~Q(work_assignments__work_item__status__is_ended=True)
     employees = (
         Employee.objects.filter(department=department, user__is_active=True)
         .annotate(
@@ -224,7 +229,7 @@ def workforce(department: Department) -> list[WorkforceRow]:
                 "work_assignments",
                 filter=Q(
                     work_assignments__is_case_officer=True,
-                    work_assignments__work_item__status__code="CLOSED",
+                    work_assignments__work_item__status__is_ended=True,
                     work_assignments__work_item__ended_at__gte=_start_of_today(),
                 ),
             ),
@@ -236,7 +241,7 @@ def workforce(department: Department) -> list[WorkforceRow]:
         for row in WorkAssignment.objects.filter(
             employee__in=employees,
             unassigned_at__isnull=True,
-            work_item__status__code="IN_PROGRESS",
+            work_item__status__is_officer_active=True,
         ).select_related("work_item__issue_type", "work_item__status")
     }
     return [

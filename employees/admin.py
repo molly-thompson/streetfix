@@ -13,8 +13,11 @@ from django.http import HttpRequest
 from .organisation_models import Department, Employee, IssueType
 from .work_models import (
     CancellationReason,
+    PhotoTag,
     Priority,
     Urgency,
+    VisitOutcome,
+    VisitReportOption,
     WorkAssignment,
     WorkItem,
     WorkItemComment,
@@ -22,6 +25,7 @@ from .work_models import (
     WorkItemReport,
     WorkItemStatus,
     WorkItemStatusHistory,
+    WorkStatusTransition,
 )
 
 
@@ -83,8 +87,17 @@ class EmployeeAdmin(admin.ModelAdmin):
 class FixedOptionAdmin(admin.ModelAdmin):
     """Allow label edits while keeping seeded option codes fixed."""
 
-    list_display = ("code", "label")
-    list_editable = ("label",)
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "active",
+        "sort_order",
+    )
     ordering = ("code",)
     readonly_fields: ClassVar[tuple[str, ...]] = ("code",)
 
@@ -106,6 +119,25 @@ class PriorityAdmin(FixedOptionAdmin):
     """Admin configuration for priority labels."""
 
     readonly_fields: ClassVar[tuple[str, ...]] = ("code", "guidance")
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "rank",
+        "is_urgent",
+        "style_key",
+        "color",
+        "active",
+        "sort_order",
+    )
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "rank",
+        "is_urgent",
+        "style_key",
+        "color",
+        "active",
+        "sort_order",
+    )
 
 
 @admin.register(Urgency)
@@ -113,12 +145,132 @@ class UrgencyAdmin(FixedOptionAdmin):
     """Admin configuration for urgency labels."""
 
     readonly_fields: ClassVar[tuple[str, ...]] = ("code", "guidance")
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "rank",
+        "is_emergency",
+        "style_key",
+        "active",
+        "sort_order",
+    )
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "rank",
+        "is_emergency",
+        "style_key",
+        "active",
+        "sort_order",
+    )
+
+
+@admin.register(CancellationReason)
+class CancellationReasonAdmin(FixedOptionAdmin):
+    """Admin configuration for cancellation reason policies."""
+
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "notes_required",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "notes_required",
+        "active",
+        "sort_order",
+    )
+
+
+@admin.register(VisitOutcome)
+class VisitOutcomeAdmin(FixedOptionAdmin):
+    """Admin configuration for visit outcome transitions."""
+
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "target_status_code",
+        "further_work_required",
+        "unfinished",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "target_status_code",
+        "further_work_required",
+        "unfinished",
+        "active",
+        "sort_order",
+    )
+
+
+@admin.register(PhotoTag)
+class PhotoTagAdmin(FixedOptionAdmin):
+    """Admin configuration for visit photo stages."""
+
+
+@admin.register(VisitReportOption)
+class VisitReportOptionAdmin(admin.ModelAdmin):
+    """Admin configuration for dynamic visit-report options."""
+
+    list_display = ("option_type", "code", "label", "active", "sort_order")
+    list_editable = ("label", "active", "sort_order")
+    list_filter = ("option_type", "active")
 
 
 @admin.register(WorkItemStatus)
-@admin.register(CancellationReason)
-class WorkOptionAdmin(FixedOptionAdmin):
-    """Admin configuration for other fixed work options."""
+class WorkItemStatusAdmin(FixedOptionAdmin):
+    """Admin configuration for lifecycle status semantics."""
+
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "rank",
+        "is_not_yet_triaged",
+        "is_triaged",
+        "is_assigned",
+        "is_officer_active",
+        "is_paused",
+        "is_awaiting_review",
+        "is_resolved",
+        "is_ended",
+        "is_cancelled",
+        "style_key",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = (
+        "label",
+        "rank",
+        "is_not_yet_triaged",
+        "is_triaged",
+        "is_assigned",
+        "is_officer_active",
+        "is_paused",
+        "is_awaiting_review",
+        "is_resolved",
+        "is_ended",
+        "is_cancelled",
+        "style_key",
+        "active",
+        "sort_order",
+    )
+
+
+@admin.register(WorkStatusTransition)
+class WorkStatusTransitionAdmin(admin.ModelAdmin):
+    """Admin configuration for allowed lifecycle transitions."""
+
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "source_status",
+        "target_status",
+        "action_code",
+        "active",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = ("action_code", "active")
+    list_filter = ("active", "source_status", "target_status")
 
 
 @admin.register(WorkItem)

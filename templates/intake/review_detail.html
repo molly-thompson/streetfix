@@ -14,11 +14,11 @@
       method="post"
     >
       {% csrf_token %}
-      <button class="uk-button uk-button-primary" type="submit">Retry triage</button>
+      <button class="ui-button" type="submit">Retry triage</button>
     </form>
   {% endif %}
   <h2>Reported issue</h2>
-  <dl class="uk-description-list">
+  <dl class="ui-description-list">
     <dt>Issue</dt>
     <dd>{{ submission.reported_issue_type|default:"Not specified" }}{% if submission.other_selected %} (Other){% endif %}</dd>
     <dt>Description</dt>
@@ -53,7 +53,7 @@
 
   {% if report_photos %}
     <h2>Report photos</h2>
-    <ul class="uk-list">
+    <ul class="ui-list">
       {% for photo in report_photos %}
         <li>
           <a href="{% url 'intake:report_photo' photo.pk %}">Photo {{ forloop.counter }}</a>
@@ -65,11 +65,11 @@
   {% if submission.triage_state == "NEEDS_REVIEW" %}
     <p>
       <a
-        class="uk-button uk-button-primary"
+        class="ui-button"
         href="{% url 'intake:accept_report' submission.pk %}"
       >Accept report</a>
       <a
-        class="uk-button uk-button-default"
+        class="ui-button ui-button--secondary"
         href="{% url 'intake:out_of_scope' submission.pk %}"
       >Mark out of scope</a>
     </p>
@@ -82,7 +82,7 @@
     {% endif %}
     <p>Other matches may exist. Location alone does not establish a duplicate.</p>
     {% if duplicate_search.candidates %}
-      <ul class="uk-list uk-list-divider">
+      <ul class="ui-list ui-list--divided">
         {% for candidate in duplicate_search.candidates %}
           <li>
             <a
@@ -101,27 +101,27 @@
     <h2>Correct location</h2>
     <p>Provide coordinates and explain how the location was confirmed.</p>
     <form
-      class="uk-form-stacked"
+      class="ui-form ui-stack"
       action="{% url 'intake:correct_location' submission.pk %}"
       method="post"
     >
       {% csrf_token %}
       {% if location_form.non_field_errors %}
-        <div class="uk-alert-danger" role="alert">{{ location_form.non_field_errors }}</div>
+        <div class="ui-alert ui-alert--danger" role="alert">{{ location_form.non_field_errors }}</div>
       {% endif %}
       {% for field in location_form %}
-        <div class="uk-margin">
-          <label class="uk-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          <div class="uk-form-controls">{{ field }}</div>
-          {% if field.errors %}<div class="uk-text-danger" role="alert">{{ field.errors }}</div>{% endif %}
+        <div class="ui-field">
+          <label class="ui-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          <div class="ui-field__control">{{ field }}</div>
+          {% if field.errors %}<div class="ui-error" role="alert">{{ field.errors }}</div>{% endif %}
         </div>
       {% endfor %}
-      <button class="uk-button uk-button-primary" type="submit">Save location</button>
+      <button class="ui-button" type="submit">Save location</button>
     </form>
   {% endif %}
   <h2>Contact</h2>
   {% if submission.reporter %}
-    <dl class="uk-description-list">
+    <dl class="ui-description-list">
       <dt>Name</dt>
       <dd>
         {{ submission.reporter.name|default:"Not provided" }}
@@ -146,18 +146,29 @@
   {% endif %}
   <h2>Triage history</h2>
   {% for attempt in submission.triage_attempts.all %}
-    <section class="uk-margin-medium">
+    <section class="ui-space-block">
       <h3>{{ attempt.get_stage_display }} · {{ attempt.created_at }}</h3>
       {% if attempt.policy_version %}<p>Policy version: {{ attempt.policy_version }}</p>{% endif %}
       {% if attempt.reviewer %}<p>Reviewer: {{ attempt.reviewer }}</p>{% endif %}
       {% if attempt.decision %}<p>Result: {{ attempt.decision }}</p>{% endif %}
       {% if attempt.reason %}<p>{{ attempt.reason|linebreaksbr }}</p>{% endif %}
+      {% if attempt.evidence.reporter_duplicate_claim %}
+        <p>
+          Reporter suggested report {{ attempt.evidence.reporter_duplicate_claim.reference }}
+          {% if attempt.evidence.reporter_duplicate_claim.confirmed_by_reporter %}
+            is the same problem.
+          {% else %}
+            may be the same problem.
+          {% endif %}
+          A reviewer must check this.
+        </p>
+      {% endif %}
       {% if attempt.decision == "LOCATION_CORRECTED" %}
         <p>Previous pin: {{ attempt.evidence.previous_location.latitude|default_if_none:"Not provided" }}, {{ attempt.evidence.previous_location.longitude|default_if_none:"Not provided" }}</p>
         <p>Corrected pin: {{ attempt.evidence.corrected_location.latitude }}, {{ attempt.evidence.corrected_location.longitude }}</p>
       {% endif %}
       {% if attempt.field_outcomes %}
-        <dl class="uk-description-list">
+        <dl class="ui-description-list">
           {% for field, outcome in attempt.field_outcomes.items %}
             <dt>{{ field }}</dt>
             <dd>{{ outcome.state }}{% if outcome.value %}: {{ outcome.value }}{% endif %}</dd>

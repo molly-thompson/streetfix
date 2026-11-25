@@ -13,6 +13,8 @@ class WorkOption(models.Model):
 
     code = models.CharField(max_length=40, unique=True, editable=False)
     label = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         """Share option ordering across work lookup tables."""
@@ -29,20 +31,122 @@ class Priority(WorkOption):
     """Operational impact of an issue."""
 
     guidance = models.TextField()
+    rank = models.PositiveIntegerField(default=0)
+    is_urgent = models.BooleanField(default=False)
+    style_key = models.CharField(max_length=40, blank=True)
+    icon = models.CharField(max_length=40, blank=True)
+    color = models.CharField(max_length=7, default="#64748b")
 
 
 class Urgency(WorkOption):
     """Time sensitivity of an issue."""
 
     guidance = models.TextField()
+    rank = models.PositiveIntegerField(default=0)
+    is_emergency = models.BooleanField(default=False)
+    style_key = models.CharField(max_length=40, blank=True)
+    icon = models.CharField(max_length=40, blank=True)
 
 
 class WorkItemStatus(WorkOption):
     """A stage in the work item's operational lifecycle."""
 
+    rank = models.PositiveIntegerField(default=0)
+    is_not_yet_triaged = models.BooleanField(default=False)
+    is_triaged = models.BooleanField(default=False)
+    is_assigned = models.BooleanField(default=False)
+    is_officer_active = models.BooleanField(default=False)
+    is_paused = models.BooleanField(default=False)
+    is_awaiting_review = models.BooleanField(default=False)
+    is_resolved = models.BooleanField(default=False)
+    is_ended = models.BooleanField(default=False)
+    is_cancelled = models.BooleanField(default=False)
+    style_key = models.CharField(max_length=40, blank=True)
+
 
 class CancellationReason(WorkOption):
     """A structured reason for cancelling a work item."""
+
+    notes_required = models.BooleanField(default=False)
+
+
+class VisitOutcome(WorkOption):
+    """A configurable outcome for a completed officer visit."""
+
+    target_status_code = models.CharField(max_length=40)
+    further_work_required = models.BooleanField(default=False)
+    unfinished = models.BooleanField(default=False)
+
+
+class PhotoTag(WorkOption):
+    """A configurable photo stage within a visit report."""
+
+
+class VisitReportOption(models.Model):
+    """A configurable further-work, hazard, or confirmation option."""
+
+    class OptionType(models.TextChoices):
+        """Supported visit-report option groups."""
+
+        FURTHER_REASON = "FURTHER_REASON", "Further-work reason"
+        HAZARD = "HAZARD", "Safety hazard"
+        CONFIRMATION = "CONFIRMATION", "Confirmation"
+
+    option_type = models.CharField(
+        max_length=20,
+        choices=OptionType.choices,
+    )
+    code = models.CharField(max_length=40)
+    label = models.CharField(max_length=200)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        """Configure visit report option ordering and uniqueness."""
+
+        ordering = ("option_type", "sort_order", "code")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("option_type", "code"),
+                name="unique_visit_report_option",
+            )
+        ]
+
+    def __str__(self) -> str:
+        """Return the option label."""
+        return self.label
+
+
+class WorkStatusTransition(models.Model):
+    """An allowed lifecycle transition and its event name."""
+
+    source_status = models.ForeignKey(
+        WorkItemStatus,
+        on_delete=models.PROTECT,
+        related_name="outgoing_transitions",
+    )
+    target_status = models.ForeignKey(
+        WorkItemStatus,
+        on_delete=models.PROTECT,
+        related_name="incoming_transitions",
+    )
+    action_code = models.CharField(max_length=40)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        """Configure transition ordering and uniqueness."""
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source_status", "target_status", "action_code"),
+                name="unique_work_status_transition",
+            )
+        ]
+        ordering = ("source_status__rank", "target_status__rank", "action_code")
+
+    def __str__(self) -> str:
+        """Describe the configured status transition."""
+        return f"{self.source_status.code} -> {self.target_status.code}"
 
 
 class WorkItem(models.Model):
@@ -115,20 +219,19 @@ class WorkItem(models.Model):
         if not self.status_id:
             return
 
-        status_code = self.status.code
-        is_ended = status_code in {"CLOSED", "CANCELLED"}
+        is_ended = self.status.is_ended
         errors: dict[str, str] = {}
 
         if not is_ended and self.ended_at is not None:
             errors["ended_at"] = "Only closed or cancelled work can have an end time."
 
-        if status_code == "CANCELLED":
+        if self.status.is_cancelled:
             reason = self.cancellation_reason
             if not self.cancellation_reason_id or reason is None:
                 errors["cancellation_reason"] = (
                     "A cancellation reason is required for cancelled work."
                 )
-            elif reason.code == "OTHER" and not self.cancellation_notes.strip():
+            elif reason.notes_required and not self.cancellation_notes.strip():
                 errors["cancellation_notes"] = (
                     "Add notes when the cancellation reason is Other."
                 )
@@ -165,15 +268,24 @@ class WorkItem(models.Model):
         )
         if current.status_id == new_status.pk:
             return
-        if current.status.code in {"CLOSED", "CANCELLED"}:
+        if current.status.is_ended:
             raise ValidationError("Closed or cancelled work cannot be reopened.")
+
+        transition_exists = WorkStatusTransition.objects.filter(
+            source_status=current.status,
+            target_status=new_status,
+            active=True,
+        ).exists()
+        if not transition_exists:
+            raise ValidationError(
+                f"Transition from {current.status.label} to {new_status.label} "
+                "is not allowed."
+            )
 
         previous_status = current.status
         current.status = new_status
-        current.ended_at = (
-            timezone.now() if new_status.code in {"CLOSED", "CANCELLED"} else None
-        )
-        if new_status.code == "CANCELLED":
+        current.ended_at = timezone.now() if new_status.is_ended else None
+        if new_status.is_cancelled:
             current.cancellation_reason = cancellation_reason
             current.cancellation_notes = cancellation_notes
             current.cancelled_by = changed_by

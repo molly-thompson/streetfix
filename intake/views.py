@@ -31,7 +31,7 @@ from django.views.generic import (
 )
 from global_login_required import login_not_required
 
-from employees.organisation_models import Employee
+from employees.organisation_models import Employee, IssueType
 from employees.work_models import WorkItem
 from intake.forms import (
     AcceptReportForm,
@@ -41,7 +41,7 @@ from intake.forms import (
     OutOfScopeForm,
     ReopenReportForm,
 )
-from intake.models import ReportPhotoSlot, ReportSubmission
+from intake.models import IssueCategory, ReportPhotoSlot, ReportSubmission, SlaPolicy
 from intake.report_views import session_key
 from intake.services.acceptance import accept_report
 from intake.services.duplicates import duplicate_candidates, link_duplicate
@@ -70,6 +70,7 @@ from intake.services.review import (
 
 from .chat import (
     nearby_open_work,
+    parse_issue_type_id,
     parse_report,
     submit_chat_report,
 )
@@ -96,12 +97,109 @@ class ReportChatView(TemplateView):
         context = super().get_context_data(**kwargs)
         context["show_staff_panel"] = self.request.user.is_staff
         context["report_form_enabled"] = settings.INTAKE_PUBLIC_REPORTING_ENABLED
+        categories = {
+            category.issue_type_id: category
+            for category in IssueCategory.objects.filter(
+                active=True, issue_type__isnull=False
+            ).prefetch_related("subcategories", "keywords")
+        }
+        issues = (
+            IssueType.objects.filter(
+                active=True, kind=IssueType.Kind.ISSUE, department__isnull=False
+            )
+            .select_related("department")
+            .order_by("sort_order", "name", "pk")
+        )
+        priority_names = {
+            "CRITICAL": "Urgent",
+            "HIGH": "High",
+            "NORMAL": "Medium",
+            "LOW": "Low",
+        }
+        issue_options = []
+        for issue in issues:
+            if issue.department is None:
+                raise ValueError(f"Issue type {issue.pk} has no department.")
+            category = categories.get(issue.pk)
+            if category and category.default_priority_code not in ("", *priority_names):
+                logger.warning(
+                    "Chat category %s has an unsupported default priority %s.",
+                    category.pk,
+                    category.default_priority_code,
+                )
+            if category:
+                for subcategory in category.subcategories.all():
+                    if subcategory.active and subcategory.raised_priority_code not in (
+                        "",
+                        *priority_names,
+                    ):
+                        logger.warning(
+                            "Chat subcategory %s has unsupported raised priority %s.",
+                            subcategory.pk,
+                            subcategory.raised_priority_code,
+                        )
+            issue_options.append(
+                {
+                    "id": issue.pk,
+                    "name": issue.name,
+                    "team": issue.department.name,
+                    "translationCode": category.code if category else "",
+                    "priority": priority_names.get(
+                        category.default_priority_code, "Medium"
+                    )
+                    if category
+                    else "Medium",
+                    "keywords": [
+                        keyword.pattern
+                        for keyword in category.keywords.all()
+                        if keyword.active
+                    ]
+                    if category
+                    else [],
+                    "subissues": [
+                        {
+                            "label": subcategory.label,
+                            "translationCode": subcategory.code,
+                            "raise": priority_names.get(
+                                subcategory.raised_priority_code
+                            ),
+                        }
+                        for subcategory in category.subcategories.all()
+                        if subcategory.active
+                    ]
+                    if category
+                    else [],
+                }
+            )
+        slas = {}
+        for policy in SlaPolicy.objects.filter(active=True).order_by("-priority_code"):
+            # The original SLA seed used URGENT for the CRITICAL priority.
+            code = (
+                "CRITICAL" if policy.priority_code == "URGENT" else policy.priority_code
+            )
+            if code not in priority_names:
+                logger.warning(
+                    "SLA policy %s has an unsupported priority code.", policy.pk
+                )
+                continue
+            if priority_names[code] in slas:
+                logger.warning(
+                    "Multiple active SLA policies map to %s; using %s.",
+                    priority_names[code],
+                    policy.priority_code,
+                )
+            slas[priority_names[code]] = {
+                "ackH": policy.acknowledgement_hours,
+                "resD": policy.resolution_working_days,
+            }
         context["chat_config"] = {
             "map": public_map_config(),
             "photos": settings.INTAKE_PUBLIC_REPORTING_ENABLED
             and photo_upload_enabled(),
             "photoAuthorizeUrl": reverse("intake:photo_authorize"),
             "photoVerifyUrl": reverse("intake:photo_verify", args=[ZERO_ID, ZERO_ID]),
+            "issueTypes": issue_options,
+            "slas": slas,
         }
         return context
 
@@ -169,8 +267,19 @@ class NearbyReportView(View):
 
     def get(self, request: HttpRequest) -> JsonResponse:
         """Return the nearest matching open work item, or no match."""
+        raw_issue_id = request.GET.get("issue_type_id")
+        try:
+            issue_type_id = (
+                parse_issue_type_id(raw_issue_id) if raw_issue_id is not None else None
+            )
+        except ValidationError:
+            return JsonResponse(
+                {"error": "The issue type was not recognised."}, status=400
+            )
         work_item = nearby_open_work(
-            request.GET.get("category", ""), request.GET.get("postcode", "")
+            request.GET.get("category", ""),
+            request.GET.get("postcode", ""),
+            issue_type_id=issue_type_id,
         )
         reference = reference_for_work_item(work_item) if work_item else None
         if work_item is None or reference is None:
