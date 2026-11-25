@@ -27,6 +27,7 @@ from .views import (
     ReportChatView,
     ReportPhotoView,
     ReportStatusView,
+    RequestEngineAssessmentView,
     ReviewDetailView,
     ReviewQueueView,
 )
@@ -62,6 +63,9 @@ urlpatterns = [
         "review/<int:pk>/assess-duplicates/",
         AssessDuplicatesView.as_view(),
         name="assess_duplicates",
+        "review/<int:pk>/assessment/",
+        RequestEngineAssessmentView.as_view(),
+        name="request_engine_assessment",
     ),
     path(
         "review/<int:pk>/recover/", RecoverReportView.as_view(), name="recover_report"

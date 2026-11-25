@@ -36,7 +36,7 @@ dev = [
 
 # Ruff for linting & formatting
 [tool.ruff]
-exclude = ["*/migrations/", "*/__init__.py", "manage.py"]
+exclude = ["*/migrations/", "*/__init__.py", "manage.py", "triage_service/"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "DJ", "N", "D"]
@@ -80,7 +80,7 @@ convention = "google"
 plugins = ["mypy_django_plugin.main"]
 strict = true
 ignore_missing_imports = true
-exclude = ["manage.py", "/migrations/"]
+exclude = ["manage.py", "/migrations/", "^triage_service/"]
 
 [[tool.mypy.overrides]]
 module = "allauth.*"

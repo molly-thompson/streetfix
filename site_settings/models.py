@@ -43,6 +43,13 @@ CSS_SAFE_VALUE_VALIDATOR = RegexValidator(
 class SiteConfiguration(models.Model):
     """Singleton organisation configuration shared across applications."""
 
+    class TriageEngineMode(models.TextChoices):
+        """Control whether decision-support results are recorded or shown."""
+
+        OFF = "off", "Disabled"
+        SHADOW = "shadow", "Shadow evaluation"
+        REVIEW = "review", "Reviewer decision support"
+
     locale_code = models.CharField(max_length=35, default="en-GB")
     language_code = models.CharField(max_length=10, default="en")
     time_zone = models.CharField(max_length=50, default="Europe/London")
@@ -89,6 +96,18 @@ class SiteConfiguration(models.Model):
     max_photo_bytes = models.PositiveIntegerField(default=5 * 1024 * 1024)
     no_photo_reason_min_length = models.PositiveIntegerField(default=15)
     postcode_cache_seconds = models.PositiveIntegerField(default=60 * 60 * 24)
+    triage_engine_mode = models.CharField(
+        max_length=10,
+        choices=TriageEngineMode,
+        default=TriageEngineMode.OFF,
+    )
+    triage_engine_configuration = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Approved engine profile as a JSON object; do not include credentials."
+        ),
+    )
 
     class Meta:
         verbose_name = "site configuration"
@@ -103,6 +122,21 @@ class SiteConfiguration(models.Model):
         self.pk = 1
         super().save(*args, **kwargs)
         cache.delete("site_settings:site_configuration")
+
+    def clean(self) -> None:
+        """Require an approved engine configuration before enabling assessments."""
+        super().clean()
+        if self.triage_engine_mode != self.TriageEngineMode.OFF:
+            if not isinstance(self.triage_engine_configuration, dict) or not (
+                self.triage_engine_configuration.get("profile_id")
+            ):
+                raise ValidationError(
+                    {
+                        "triage_engine_configuration": (
+                            "Provide an approved profile with a profile_id."
+                        )
+                    }
+                )
 
 
 class ThemeSettings(models.Model):

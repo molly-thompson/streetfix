@@ -262,6 +262,184 @@
           <p>Automated triage has not been recorded.</p>
         {% endfor %}
       </div>
+      </ul>
+    {% else %}
+      <p>No matches were found in this search, or the report has no map pin.</p>
+    {% endif %}
+    <p><a href="{% url 'intake:duplicate_review' submission.pk %}">Look up another work item</a></p>
+    <h2>Correct location</h2>
+    <p>Provide coordinates and explain how the location was confirmed.</p>
+    <form
+      class="ui-form ui-stack"
+      action="{% url 'intake:correct_location' submission.pk %}"
+      method="post"
+    >
+      {% csrf_token %}
+      {% if location_form.non_field_errors %}
+        <div class="ui-alert ui-alert--danger" role="alert">{{ location_form.non_field_errors }}</div>
+      {% endif %}
+      {% for field in location_form %}
+        <div class="ui-field">
+          <label class="ui-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          <div class="ui-field__control">{{ field }}</div>
+          {% if field.errors %}<div class="ui-error" role="alert">{{ field.errors }}</div>{% endif %}
+        </div>
+      {% endfor %}
+      <button class="ui-button" type="submit">Save location</button>
+    </form>
+  {% endif %}
+  <section class="ui-space-block">
+    <h2>Decision support</h2>
+    <p>Suggestions are not decisions. Confirm the evidence and use your own judgement.</p>
+    {% if engine_mode == "shadow" %}
+      <p>Shadow mode: results are recorded for evaluation and are not shown here.</p>
+    {% elif engine_mode != "review" %}
+      <p>Decision support is disabled for this deployment.</p>
+    {% endif %}
+    {% if engine_job %}
+      <p>Latest assessment: {{ engine_job.get_status_display }}.</p>
+      {% if engine_job.status == "FAILED" %}<p>{{ engine_job.error }}</p>{% endif %}
+    {% endif %}
+    {% if submission.triage_state == "NEEDS_REVIEW" and engine_mode == "review" or submission.triage_state == "NEEDS_REVIEW" and engine_mode == "shadow" %}
+      <form
+        action="{% url 'intake:request_engine_assessment' submission.pk %}"
+        method="post"
+      >
+        {% csrf_token %}
+        <button class="ui-button ui-button--secondary" type="submit">Request assessment</button>
+      </form>
+    {% endif %}
+    {% if engine_result_job %}
+      {% with result=engine_result_job.result %}
+        <h3>Assessment: {{ result.status }}</h3>
+        <p>Engine profile {{ engine_result_job.profile }}; policy version {{ engine_result_job.policy_version }}.</p>
+        {% if result.status == "degraded" %}
+          <p>AI analysis was unavailable. This result contains deterministic checks only.</p>
+          {% if result.provider_metadata.error_code %}<p>Provider status: {{ result.provider_metadata.error_code }}</p>{% endif %}
+        {% elif result.status == "abstained" %}
+          <p>The engine withheld one or more recommendations because of uncertainty.</p>
+        {% endif %}
+        <dl class="ui-description-list">
+          <dt>Suggested category</dt>
+          <dd>
+            {{ result.category_recommendation.primary_category_name|default:"Not determined" }}
+            {{ result.category_recommendation.abstention_reason|default:"" }}
+          </dd>
+          <dt>Suggested engine priority</dt>
+          <dd>
+            {{ result.priority_recommendation.priority_name|default:"Not determined" }}. {{ result.priority_recommendation.rationale }}
+          </dd>
+          <dt>Suggested team</dt>
+          <dd>
+            {{ result.routing_recommendation.team_name|default:"Not determined" }}. {{ result.routing_recommendation.rationale }}
+          </dd>
+        </dl>
+        <p>Engine priorities are not confirmed priority or urgency decisions.</p>
+        {% if result.safety_assessment.escalation_triggered %}
+          <h3>Safety alerts</h3>
+          <p>These are prompts for human review, not an emergency response.</p>
+          <ul>
+            {% for hazard in result.safety_assessment.matched_hazards %}
+              <li>{{ hazard.label }}: {{ hazard.matched_text }}</li>
+            {% endfor %}
+          </ul>
+          {% for action in result.safety_assessment.recommended_immediate_actions %}
+            <p>Suggested action: {{ action }}</p>
+          {% endfor %}
+        {% endif %}
+        {% for warning in result.safety_assessment.safety_warnings %}
+          <p>Safety warning: {{ warning }}</p>
+        {% endfor %}
+        {% for mention in result.safety_assessment.negated_or_uncertain_mentions %}
+          <p>Uncertain safety mention: {{ mention.phrase }}. {{ mention.explanation }}</p>
+        {% endfor %}
+        <h3>Evidence and uncertainty</h3>
+        <p>{{ result.evidence_and_reasoning.reasoning_summary }}</p>
+        <p>{{ result.uncertainty_assessment.decision_uncertainty.explanation }}</p>
+        {% for fact in result.evidence_and_reasoning.reported_facts %}
+          <p>Model-identified fact, not independently verified: {{ fact }}</p>
+        {% endfor %}
+        <ul>
+          {% for excerpt in result.evidence_and_reasoning.evidence_excerpts %}
+            <li>{{ excerpt.quote }} {% if excerpt.verified_in_source %}(matched to input){% else %}(not verified){% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% for inference in result.evidence_and_reasoning.inferred_conclusions %}
+          <p>Inference: {{ inference.conclusion }}. {{ inference.uncertainty_note }}</p>
+        {% endfor %}
+        {% for flag in result.evidence_and_reasoning.unsupported_or_contradictory_flags %}
+          <p>Evidence warning: {{ flag }}</p>
+        {% endfor %}
+        {% for item in result.missing_information %}
+          <p>Missing information: {{ item.question }}</p>
+        {% endfor %}
+        {% for reason in result.human_review.reasons %}
+          <p>Review note: {{ reason }}</p>
+        {% endfor %}
+        {% for warning in result.warnings %}
+          <p>Assessment warning: {{ warning }}</p>
+        {% endfor %}
+      {% endwith %}
+    {% elif engine_job.status == "COMPLETED" and engine_mode == "review" %}
+      <p>This result is unavailable because it is a shadow assessment or its report or policy context changed.</p>
+    {% endif %}
+  </section>
+  <h2>Contact</h2>
+  {% if submission.reporter %}
+    <dl class="ui-description-list">
+      <dt>Name</dt>
+      <dd>
+        {{ submission.reporter.name|default:"Not provided" }}
+      </dd>
+      <dt>Email</dt>
+      <dd>
+        {{ submission.reporter.email|default:"Not provided" }}
+      </dd>
+      <dt>Telephone</dt>
+      <dd>
+        {{ submission.reporter.telephone|default:"Not provided" }}
+      </dd>
+      <dt>Address</dt>
+      <dd>
+        {{ submission.reporter.address|default:"Not provided"|linebreaksbr }}
+      </dd>
+      <dt>Updates requested</dt>
+      <dd>{{ submission.updates_requested|yesno:"Yes,No" }}{% if submission.contact_method %} ({{ submission.contact_method }}){% endif %}</dd>
+    </dl>
+  {% else %}
+    <p>No contact details provided.</p>
+  {% endif %}
+  <h2>Triage history</h2>
+  {% for attempt in submission.triage_attempts.all %}
+    <section class="ui-space-block">
+      <h3>{{ attempt.get_stage_display }} · {{ attempt.created_at }}</h3>
+      {% if attempt.policy_version %}<p>Policy version: {{ attempt.policy_version }}</p>{% endif %}
+      {% if attempt.reviewer %}<p>Reviewer: {{ attempt.reviewer }}</p>{% endif %}
+      {% if attempt.decision %}<p>Result: {{ attempt.decision }}</p>{% endif %}
+      {% if attempt.reason %}<p>{{ attempt.reason|linebreaksbr }}</p>{% endif %}
+      {% if attempt.evidence.reporter_duplicate_claim %}
+        <p>
+          Reporter suggested report {{ attempt.evidence.reporter_duplicate_claim.reference }}
+          {% if attempt.evidence.reporter_duplicate_claim.confirmed_by_reporter %}
+            is the same problem.
+          {% else %}
+            may be the same problem.
+          {% endif %}
+          A reviewer must check this.
+        </p>
+      {% endif %}
+      {% if attempt.decision == "LOCATION_CORRECTED" %}
+        <p>Previous pin: {{ attempt.evidence.previous_location.latitude|default_if_none:"Not provided" }}, {{ attempt.evidence.previous_location.longitude|default_if_none:"Not provided" }}</p>
+        <p>Corrected pin: {{ attempt.evidence.corrected_location.latitude }}, {{ attempt.evidence.corrected_location.longitude }}</p>
+      {% endif %}
+      {% if attempt.field_outcomes %}
+        <dl class="ui-description-list">
+          {% for field, outcome in attempt.field_outcomes.items %}
+            <dt>{{ field }}</dt>
+            <dd>{{ outcome.state }}{% if outcome.value %}: {{ outcome.value }}{% endif %}</dd>
+          {% endfor %}
+        </dl>
+      {% endif %}
     </section>
   </div>
 {% endblock content %}

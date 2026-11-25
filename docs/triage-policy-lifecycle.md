@@ -153,6 +153,91 @@ provide them.
 The staff review queue should use the deployment's defined theme tokens and
 existing interface components wherever appropriate.
 
+## Optional decision-support engine
+
+The triage dashboard is the existing `/review/` queue. Access requires an
+employee account and the `review_reportsubmission` permission. It uses the
+site's database-backed theme and branding. A reviewer can request an engine
+assessment for a report already awaiting review; this never creates work or
+changes a confirmed decision.
+
+The mode and complete engine profile are stored in **Site configuration** in
+Django Admin. The default is disabled. `Shadow evaluation` records results but
+never shows them to reviewers or changes the urgent queue; `Reviewer decision
+support` displays results requested in that mode and flags engine safety
+escalations for urgent review. Switching modes does not reveal prior shadow
+results. The profile is a JSON object in `triage_engine_configuration`; each
+job retains its profile snapshot and digest, policy version and input digest.
+Changing the profile, active policy, taxonomy or report input invalidates
+pending or displayed recommendations. Profile validation by the engine occurs
+when the worker processes the request; an invalid profile fails explicitly.
+
+The bundled YAML profiles are **examples**, not approved policy. Administrators
+must approve a deployment-specific profile, categories, team routing and
+priority definitions against the database's issue taxonomy before enabling
+the feature. Engine priorities are not the application's independent priority
+and urgency decisions. A current active policy with an unchanged taxonomy is
+also required. The engine is advisory even when its own response does not
+require review. Its checks are not a substitute for emergency response.
+
+Before enabling it, obtain authorization for sending report descriptions and
+location text to the configured AI provider. Free text may contain personal
+information. No reporter contact record or photos are deliberately sent, but
+they may be mentioned in the description. Assess provider retention, data
+residency, contracts, retention of stored results, and access to logs and
+backups. Do not place credentials in the database profile.
+
+The service is a separate, authenticated process on the **same isolated host**
+as Django. Set the same strong, random `TRIAGE_ENGINE_SERVICE_TOKEN` in both
+processes, and set `GEMINI_API_KEY` only for the engine process when authorized.
+The token must contain 32–256 letters, digits, `.`, `_`, `~` or `-`. The Django
+`TRIAGE_ENGINE_URL` defaults to `http://127.0.0.1:8001`; only an HTTP loopback
+address with an explicit port is accepted. Protect the host and its process
+environment; loopback and a shared token are not a substitute for isolation
+on a shared or untrusted host. Do not expose the engine publicly or use its
+unprotected `triage_engine.api:app` entry point.
+
+From `triage_service`, install the locked dependencies and run the authenticated
+entry point:
+
+```shell
+uv sync --locked
+uv run --locked uvicorn triage_engine.secure_api:app --host 127.0.0.1 --port 8001
+```
+
+For an example JSON profile to edit and approve, from `triage_service` run:
+
+```shell
+uv run --locked python -c "from pathlib import Path; from triage_engine.config_loader import ConfigRegistry; print(ConfigRegistry.from_directory(Path('configs')).get('streetfix').model_dump_json(indent=2))"
+```
+
+Paste the approved JSON into Site configuration and choose shadow mode first.
+The included example's names, response targets and model choices must not be
+assumed appropriate for a deployment. Run `python manage.py migrate`, then
+schedule and monitor this bounded worker frequently enough for the agreed
+review workflow:
+
+```shell
+uv run python manage.py process_triage_engine --limit 20
+```
+
+The database stores pending jobs; the worker reclaims leases after five
+minutes. Failures are shown to reviewers and return a nonzero command exit;
+reviewers may request a new assessment. Provider failures may return a
+clearly marked degraded result. Input longer than the engine's limits is
+rejected rather than silently shortened. A late result cannot overwrite a
+human decision. Monitor queue age, failures and provider costs; turning the
+feature off stops new requests and prevents workers from starting jobs.
+
+Give the separate `view_triageenginejob` admin permission only to pilot
+evaluators who are not reviewing the same shadow cases. Assessment records,
+including shadow results, are read-only in admin and can contain sensitive
+report excerpts. Compare shadow results with independently recorded human
+decisions and use the pilot safeguards above. Responsible staff must approve
+sample sizes and disagreement/abstention thresholds before moving to reviewer
+mode. Zero observed critical or emergency misses is necessary in the evaluated
+sample but is not proof of safety.
+
 ## Public chat, form, maps and photos
 
 The report chat and the report form submit through the same service. Neither

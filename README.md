@@ -29,6 +29,10 @@ site branding and theme settings.
   incoming queue and individual reports at `/review/`. Optional deterministic
   duplicate assessments are disabled by default; see the triage policy
   lifecycle documentation before enabling them.
+- **Triage dashboard:** Authorized reviewers can work through the review queue
+  and request optional advisory engine assessments. Decision support is off
+  until an administrator configures and approves it; see
+  `docs/triage-policy-lifecycle.md`.
 - **Static assets:** UIkit and the site theme are served from the project's
   static files; the pinned Leaflet distribution is also bundled locally for the
   optional report map. WhiteNoise supports serving collected static files in
