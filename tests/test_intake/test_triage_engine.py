@@ -136,6 +136,34 @@ def test_reviewers_queue_assessment_and_view_advice(
     assert b"Completed" in dashboard.content
 
 
+def test_review_dashboard_combines_both_assessments(
+    client: Client,
+    engine_settings: Any,
+    active_policy: TriagePolicy,
+    reviewer: Employee,
+    submission: ReportSubmission,
+) -> None:
+    """Both reviewer tools remain available, including after a form error."""
+    config = SiteConfiguration.objects.get(pk=1)
+    config.duplicate_matching_enabled = True
+    config.save()
+    client.force_login(reviewer.user)
+    detail_url = reverse("intake:review_detail", args=[submission.pk])
+    detail = client.get(detail_url)
+    assert b"Assess matching signals" in detail.content
+    assert b"Request assessment" in detail.content
+    assert detail.content.count(b"Correct location</h2>") == 1
+    assert detail.content.count(b"Triage history</h2>") == 1
+
+    invalid = client.post(
+        reverse("intake:correct_location", args=[submission.pk]),
+        {"latitude": "1", "longitude": "2", "reason": ""},
+    )
+    assert invalid.status_code == 400
+    assert b"Assess matching signals" in invalid.content
+    assert b"Request assessment" in invalid.content
+
+
 def test_shadow_results_stay_hidden_after_enabling_review(
     client: Client,
     engine_settings: Any,

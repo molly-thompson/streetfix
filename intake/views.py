@@ -74,12 +74,12 @@ from intake.services.review import (
     reject_out_of_scope,
     reopen_final_decision,
 )
-from site_settings.configuration import get_site_configuration
 from intake.services.triage.engine import (
     engine_mode,
     request_assessment,
     reviewable_result,
 )
+from site_settings.configuration import get_site_configuration
 
 from .chat import (
     nearby_open_work,
@@ -388,23 +388,13 @@ class ReviewQueueView(ReviewerMixin, ListView):  # type: ignore[type-arg]
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Summarize the full queue, not just the current page."""
         context = super().get_context_data(**kwargs)
-        context["queue_totals"] = pending_reviews().aggregate(
-            total=Count("pk"),
-            urgent=Count("pk", filter=Q(queue_urgent=True)),
-            processing=Count("pk", filter=Q(triage_state="RECEIVED")),
-        )
-        context["engine_mode"] = engine_mode()
-        return context
-
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        """Summarize the full queue, not just the current page."""
-        context = super().get_context_data(**kwargs)
         context["queue_counts"] = self.get_queryset().aggregate(
             total=Count("pk"),
             urgent=Count("pk", filter=Q(queue_urgent=True)),
             processing=Count("pk", filter=Q(triage_state="RECEIVED")),
             ready=Count("pk", filter=Q(triage_state="NEEDS_REVIEW")),
         )
+        context["engine_mode"] = engine_mode()
         return context
 
 
@@ -423,6 +413,7 @@ def review_dashboard_context(submission: ReportSubmission) -> dict[str, Any]:
         except Exception:
             logger.exception("Could not load matching assessment for %s", submission.pk)
             matching_message = "Matching is unavailable. Use the existing work search."
+    job = submission.engine_jobs.first()
     return {
         "duplicate_search": search,
         "matching_enabled": matching_enabled,
@@ -434,6 +425,11 @@ def review_dashboard_context(submission: ReportSubmission) -> dict[str, Any]:
         "report_photos": ReportPhotoSlot.objects.filter(
             draft__submission=submission, asset_id__isnull=False
         ).order_by("created_at", "pk"),
+        "engine_mode": engine_mode(),
+        "engine_job": job,
+        "engine_result_job": (
+            job if job is not None and reviewable_result(job, submission) else None
+        ),
     }
 
 
@@ -523,15 +519,6 @@ class ReviewDetailView(ReviewerMixin, DetailView):  # type: ignore[type-arg]
             }
         )
         context.update(review_dashboard_context(self.object))
-        context["duplicate_search"] = duplicate_candidates(self.object)
-        context["report_photos"] = ReportPhotoSlot.objects.filter(
-            draft__submission=self.object, asset_id__isnull=False
-        ).order_by("created_at", "pk")
-        context["engine_mode"] = engine_mode()
-        job = self.object.engine_jobs.first()
-        context["engine_job"] = job
-        if job is not None and reviewable_result(job, self.object):
-            context["engine_result_job"] = job
         return context
 
 
@@ -562,6 +549,9 @@ class AssessDuplicatesView(ReviewerMixin, View):
         else:
             messages.success(request, "Advisory matching assessment completed.")
         return redirect("intake:review_detail", pk=submission.pk)
+
+
+@method_decorator(never_cache, name="dispatch")
 class RequestEngineAssessmentView(ReviewerMixin, View):
     """Queue an optional engine assessment for an authorized reviewer."""
 

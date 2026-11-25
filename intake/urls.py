@@ -63,6 +63,8 @@ urlpatterns = [
         "review/<int:pk>/assess-duplicates/",
         AssessDuplicatesView.as_view(),
         name="assess_duplicates",
+    ),
+    path(
         "review/<int:pk>/assessment/",
         RequestEngineAssessmentView.as_view(),
         name="request_engine_assessment",
