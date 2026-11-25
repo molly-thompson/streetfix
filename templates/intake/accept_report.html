@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Accept report · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <p><a href="{% url 'intake:review_detail' submission.pk %}">Back to report {{ submission.pk }}</a></p>
+  <h1>Accept report {{ submission.pk }}</h1>
+  <p>Confirm the classification and checks before creating work for a department.</p>
+  <form class="uk-form-stacked" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="uk-alert-danger" role="alert">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for field in form %}
+      <div class="uk-margin">
+        {% if field.name == "scope_confirmed" or field.name == "not_duplicate_confirmed" or field.name == "location_confirmed" %}
+          <label>{{ field }} {{ field.label }}</label>
+        {% else %}
+          <label class="uk-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          <div class="uk-form-controls">{{ field }}</div>
+        {% endif %}
+        {% if field.errors %}<div class="uk-text-danger" role="alert">{{ field.errors }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <button class="uk-button uk-button-primary" type="submit">Create work item</button>
+  </form>
+{% endblock content %}

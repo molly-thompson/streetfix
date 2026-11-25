@@ -17,6 +17,8 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
+from intake.services.queue import pending_reviews
+
 from . import approval, geo
 from .dispatch import NOT_YET_TRIAGED, assign_work, dispatchable_work, remove_from_work
 from .forms import AssignWorkForm, RemoveFromWorkForm
@@ -88,9 +90,12 @@ class ManagerMixin(PermissionRequiredMixin):
 
     def shell_context(self, active: str) -> dict[str, Any]:
         """Return what the manager layout's sidebar needs."""
+        can_review = self.request.user.has_perm("intake.review_reportsubmission")
         return {
             "active": active,
             "needs_case_officer": needs_case_officer_count(self.manager().department),
+            "can_review_reports": can_review,
+            "reports_awaiting_review": pending_reviews().count() if can_review else 0,
         }
 
 

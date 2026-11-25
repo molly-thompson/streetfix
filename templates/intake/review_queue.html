@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Review reports · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <h1>Review reports</h1>
+  <p>Urgent reports appear first. Reports awaiting processing are also shown.</p>
+  <p><a href="{% url 'intake:finalized_reports' %}">Review rejected or duplicate reports</a></p>
+  {% if submissions %}
+    <div class="uk-overflow-auto">
+      <table class="uk-table uk-table-divider uk-table-middle">
+        <caption class="uk-text-left">Reports awaiting review</caption>
+        <thead>
+          <tr>
+            <th scope="col">Report</th>
+            <th scope="col">Issue</th>
+            <th scope="col">Received</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for submission in submissions %}
+            <tr>
+              <td>
+                <a href="{% url 'intake:review_detail' submission.pk %}">Report {{ submission.pk }}</a>
+                {% if submission.queue_urgent %}<strong>Urgent review</strong>{% endif %}
+              </td>
+              <td>{{ submission.reported_issue_type|default:"Not specified" }}</td>
+              <td>{{ submission.submitted_at }}</td>
+              <td>{{ submission.get_triage_state_display }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if is_paginated %}
+      <nav aria-label="Report pages">
+        <ul class="uk-pagination">
+          {% if page_obj.has_previous %}
+            <li><a href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+          {% endif %}
+          <li><span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+            <li><a href="?page={{ page_obj.next_page_number }}">Next</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  {% else %}
+    <p>No reports are awaiting review.</p>
+  {% endif %}
+{% endblock content %}

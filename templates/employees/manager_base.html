@@ -46,6 +46,16 @@
               <span class="lbl">Dispatch</span>
               {% if needs_case_officer %}<span class="count">{{ needs_case_officer }}</span>{% endif %}
             </a>
+            {% if can_review_reports %}
+              <a href="{% url 'intake:review_queue' %}">
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 11l3 3 8-8" />
+                  <path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
+                </svg>
+                <span class="lbl">Report review</span>
+                {% if reports_awaiting_review %}<span class="count">{{ reports_awaiting_review }}</span>{% endif %}
+              </a>
+            {% endif %}
           </nav>
           <div class="side-foot">
             <details class="menu up">

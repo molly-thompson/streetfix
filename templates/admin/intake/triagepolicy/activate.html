@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <p>Review the policy's rules, service area, labels, and examples before approving it. Activation enables proposals for human review, not automatic decisions.</p>
+  {% if results %}
+    <h2>Example results</h2>
+    <ul>
+      {% for result in results %}
+        <li>{{ result.name }}: {% if result.passed %}passed{% else %}requires attention{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Valid rules and examples are required before activation.</p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div class="submit-row">
+      <input type="submit" value="Approve and activate">
+    </div>
+  </form>
+  <p><a href="{% url 'admin:intake_triagepolicy_change' policy.pk %}">Back to policy</a></p>
+{% endblock content %}
