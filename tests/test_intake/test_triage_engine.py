@@ -15,27 +15,30 @@ from django.utils import timezone
 from employees.organisation_models import Employee
 from intake.models import ReportSubmission, TriageEngineJob, TriagePolicy
 from intake.services.triage.engine import (
-    _digest,
     process_job,
     request_assessment,
     reviewable_result,
 )
 from intake.services.triage.taxonomy import snapshot_taxonomy
+from site_settings.models import SiteConfiguration, ThemeSettings
 
 pytestmark = pytest.mark.django_db
 
 CONFIG = {"profile_id": "test", "example": "approved"}
-DIGEST = _digest(CONFIG)
 
 
 @pytest.fixture
 def engine_settings() -> Any:
     """Enable an isolated test configuration."""
+    SiteConfiguration.objects.update_or_create(
+        pk=1,
+        defaults={
+            "triage_engine_mode": "review",
+            "triage_engine_configuration": CONFIG,
+        },
+    )
     with override_settings(
-        TRIAGE_ENGINE_MODE="review",
         TRIAGE_ENGINE_URL="http://127.0.0.1:8001",
-        TRIAGE_ENGINE_PROFILE="test",
-        TRIAGE_ENGINE_CONFIG_SHA256=DIGEST,
         TRIAGE_ENGINE_SERVICE_TOKEN="x" * 32,
     ):
         yield
@@ -107,9 +110,18 @@ def test_reviewers_queue_assessment_and_view_advice(
     job = submission.engine_jobs.get()
     with patch(
         "intake.services.triage.engine._json_request",
-        side_effect=[CONFIG, engine_result()],
-    ):
+        return_value=engine_result(),
+    ) as request:
         assert process_job(job.pk)
+    assert request.call_args.args[1] == {
+        "configuration": CONFIG,
+        "report": {
+            "profile_id": "test",
+            "description": "A broken light",
+            "location": None,
+            "allow_degraded_on_ai_error": True,
+        },
+    }
     job.refresh_from_db()
     submission.refresh_from_db()
     assert job.status == "COMPLETED"
@@ -132,13 +144,17 @@ def test_shadow_results_stay_hidden_after_enabling_review(
     submission: ReportSubmission,
 ) -> None:
     """Switching modes cannot expose shadow results to a reviewer."""
-    with override_settings(TRIAGE_ENGINE_MODE="shadow"):
-        job = request_assessment(submission.pk, reviewer)
-        with patch(
-            "intake.services.triage.engine._json_request",
-            side_effect=[CONFIG, engine_result()],
-        ):
-            process_job(job.pk)
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_mode = "shadow"
+    config.save()
+    job = request_assessment(submission.pk, reviewer)
+    with patch(
+        "intake.services.triage.engine._json_request",
+        return_value=engine_result(),
+    ):
+        process_job(job.pk)
+    config.triage_engine_mode = "review"
+    config.save()
     job.refresh_from_db()
     assert not reviewable_result(job, submission)
     client.force_login(reviewer.user)
@@ -152,16 +168,19 @@ def test_config_drift_and_changed_report_fail_closed(
     reviewer: Employee,
     submission: ReportSubmission,
 ) -> None:
-    """Mismatched service configuration never results in a recommendation."""
+    """Changed database configuration never results in a recommendation."""
     job = request_assessment(submission.pk, reviewer)
-    with patch(
-        "intake.services.triage.engine._json_request", return_value={"wrong": True}
-    ) as request:
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_configuration = {"profile_id": "test", "example": "changed"}
+    config.save()
+    with patch("intake.services.triage.engine._json_request") as request:
         process_job(job.pk)
     job.refresh_from_db()
     assert job.status == "FAILED"
     assert job.result is None
-    assert request.call_count == 1
+    request.assert_not_called()
+    config.triage_engine_configuration = CONFIG
+    config.save()
     next_job = request_assessment(submission.pk, reviewer)
     submission.description = "Changed"
     submission.save(update_fields=("description",))
@@ -194,6 +213,52 @@ def test_late_result_is_discarded(
     assert job.result is None
 
 
+def test_result_finishing_in_shadow_mode_stays_hidden(
+    engine_settings: Any,
+    active_policy: TriagePolicy,
+    reviewer: Employee,
+    submission: ReportSubmission,
+) -> None:
+    """A mode switch during processing cannot expose a shadow result later."""
+    job = request_assessment(submission.pk, reviewer)
+
+    def evaluate(*args: Any) -> dict[str, Any]:
+        config = SiteConfiguration.objects.get(pk=1)
+        config.triage_engine_mode = "shadow"
+        config.save()
+        return engine_result()
+
+    with patch("intake.services.triage.engine._evaluate", side_effect=evaluate):
+        process_job(job.pk)
+    job.refresh_from_db()
+    assert job.status == "COMPLETED"
+    assert not job.visible_to_reviewers
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_mode = "review"
+    config.save()
+    assert not reviewable_result(job, submission)
+
+
+def test_completed_result_is_hidden_when_configuration_changes(
+    engine_settings: Any,
+    active_policy: TriagePolicy,
+    reviewer: Employee,
+    submission: ReportSubmission,
+) -> None:
+    """A recommendation cannot be presented under a different profile."""
+    job = request_assessment(submission.pk, reviewer)
+    with patch(
+        "intake.services.triage.engine._json_request", return_value=engine_result()
+    ):
+        process_job(job.pk)
+    job.refresh_from_db()
+    assert reviewable_result(job, submission)
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_configuration = {"profile_id": "test", "example": "changed"}
+    config.save()
+    assert not reviewable_result(job, submission)
+
+
 def test_request_rejects_duplicate_and_oversized_location(
     engine_settings: Any,
     active_policy: TriagePolicy,
@@ -224,7 +289,7 @@ def test_expired_lease_is_recovered(
     )
     with patch(
         "intake.services.triage.engine._json_request",
-        side_effect=[CONFIG, engine_result()],
+        return_value=engine_result(),
     ):
         assert process_job(job.pk)
     job.refresh_from_db()
@@ -243,12 +308,12 @@ def test_safety_escalation_only_flags_visible_assessments(
     """Safety alerts highlight the queue without affecting shadow comparisons."""
     result = engine_result()
     result["safety_assessment"]["escalation_triggered"] = True
-    with override_settings(TRIAGE_ENGINE_MODE=mode):
-        job = request_assessment(submission.pk, reviewer)
-        with patch(
-            "intake.services.triage.engine._json_request", side_effect=[CONFIG, result]
-        ):
-            process_job(job.pk)
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_mode = mode
+    config.save()
+    job = request_assessment(submission.pk, reviewer)
+    with patch("intake.services.triage.engine._json_request", return_value=result):
+        process_job(job.pk)
     submission.refresh_from_db()
     assert submission.urgent_review is expected
     assert submission.work_item is None
@@ -268,6 +333,34 @@ def test_disabled_and_unauthorized_requests_do_not_queue(
         Permission.objects.get(codename="review_reportsubmission")
     )
     client.force_login(reviewer.user)
-    with override_settings(TRIAGE_ENGINE_MODE="off"):
-        assert client.post(url).status_code == 302
+    assert client.post(url).status_code == 302
     assert not submission.engine_jobs.exists()
+
+
+def test_dashboard_uses_database_branding_and_live_configuration(
+    client: Client,
+    engine_settings: Any,
+    reviewer: Employee,
+    theme_settings: ThemeSettings,
+) -> None:
+    """The dashboard follows the stored theme and mode without a restart."""
+    theme_settings.site_name = "Example services"
+    theme_settings.primary_color = "#1d4ed8"
+    theme_settings.save()
+    client.force_login(reviewer.user)
+    url = reverse("intake:review_queue")
+    response = client.get(url)
+    assert b"Example services" in response.content
+    assert b"--theme-primary: #1d4ed8;" in response.content
+    assert b"Decision support is available" in response.content
+    config = SiteConfiguration.objects.get(pk=1)
+    config.triage_engine_mode = "off"
+    config.save()
+    assert b"Decision support is disabled" in client.get(url).content
+
+
+def test_enabled_configuration_requires_a_profile() -> None:
+    """An administrator cannot enable decision support with an empty profile."""
+    config = SiteConfiguration(triage_engine_mode="review")
+    with pytest.raises(ValidationError, match="approved profile"):
+        config.full_clean()

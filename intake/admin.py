@@ -25,6 +25,7 @@ from intake.models import (
     ReportSubmissionPhoto,
     SlaPolicy,
     TriageAttempt,
+    TriageEngineJob,
     TriagePolicy,
     TriagePolicyRule,
     TriagePolicyScenario,
@@ -32,6 +33,46 @@ from intake.models import (
 from intake.services.triage.pilot import summarize_pilot
 from intake.services.triage.policy import activate_policy
 from intake.services.triage.scenarios import evaluate_scenarios
+
+
+@admin.register(TriageEngineJob)
+class TriageEngineJobAdmin(admin.ModelAdmin):
+    """Expose assessments read-only to authorized pilot evaluators."""
+
+    list_display = ("submission", "status", "profile", "created_at", "finished_at")
+    list_filter = ("status", "visible_to_reviewers")
+    readonly_fields = (
+        "submission",
+        "requested_by",
+        "status",
+        "policy_version",
+        "profile",
+        "config_digest",
+        "configuration_snapshot",
+        "input_digest",
+        "visible_to_reviewers",
+        "started_at",
+        "created_at",
+        "finished_at",
+        "result",
+        "error",
+    )
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        """Only reviewer requests can create assessments."""
+        return False
+
+    def has_change_permission(
+        self, request: HttpRequest, obj: TriageEngineJob | None = None
+    ) -> bool:
+        """Recorded assessments cannot be edited in admin."""
+        return False
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: TriageEngineJob | None = None
+    ) -> bool:
+        """Preserve assessment records in the admin."""
+        return False
 
 
 @admin.register(ContactMethod)

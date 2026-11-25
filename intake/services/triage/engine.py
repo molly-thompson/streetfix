@@ -20,6 +20,7 @@ from django.utils import timezone
 from employees.organisation_models import Employee
 from intake.models import ReportSubmission, TriageEngineJob, TriagePolicy
 from intake.services.triage.taxonomy import snapshot_taxonomy
+from site_settings.models import SiteConfiguration
 
 logger = logging.getLogger(__name__)
 MAX_RESPONSE_BYTES = 1024 * 1024
@@ -35,15 +36,29 @@ def _digest(value: object) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def _configuration() -> tuple[str, str, str]:
-    if settings.TRIAGE_ENGINE_MODE not in ("shadow", "review"):
+def engine_mode() -> str:
+    """Read the current database setting without a process-local cache."""
+    config = SiteConfiguration.objects.filter(pk=1).first()
+    return (
+        config.triage_engine_mode if config else SiteConfiguration.TriageEngineMode.OFF
+    )
+
+
+def _configuration() -> tuple[str, str, str, dict[str, Any]]:
+    config = SiteConfiguration.objects.filter(pk=1).first()
+    if config is None or config.triage_engine_mode not in ("shadow", "review"):
         raise ValidationError("Engine assessment is not enabled.")
-    profile = settings.TRIAGE_ENGINE_PROFILE
-    digest = settings.TRIAGE_ENGINE_CONFIG_SHA256
-    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", profile):
+    profile_config = config.triage_engine_configuration
+    if not isinstance(profile_config, dict):
         raise ValidationError("Configure an approved engine profile.")
-    if not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise ValidationError("Configure the approved engine configuration digest.")
+    profile = profile_config.get("profile_id")
+    if not isinstance(profile, str) or not re.fullmatch(
+        r"[a-zA-Z0-9_-]{1,64}", profile
+    ):
+        raise ValidationError("Configure an approved engine profile.")
+    if len(json.dumps(profile_config, ensure_ascii=False).encode("utf-8")) > 100 * 1024:
+        raise ValidationError("The engine configuration exceeds the 100 KB limit.")
+    digest = _digest(profile_config)
     if not re.fullmatch(
         r"[A-Za-z0-9._~-]{32,256}", settings.TRIAGE_ENGINE_SERVICE_TOKEN
     ):
@@ -66,7 +81,7 @@ def _configuration() -> tuple[str, str, str]:
         raise ValidationError(
             "The engine must use a loopback-only HTTP URL with a port."
         )
-    return settings.TRIAGE_ENGINE_URL.rstrip("/"), profile, digest
+    return settings.TRIAGE_ENGINE_URL.rstrip("/"), profile, digest, profile_config
 
 
 def _policy(version: int | None = None) -> TriagePolicy:
@@ -113,7 +128,7 @@ def request_assessment(submission_id: int, reviewer: Employee) -> TriageEngineJo
         "intake.review_reportsubmission"
     ):
         raise ValidationError("An authorized reviewer is required.")
-    _, profile, digest = _configuration()
+    _, profile, digest, profile_config = _configuration()
     policy = _policy()
     submission = ReportSubmission.objects.select_for_update().get(pk=submission_id)
     if submission.triage_state != ReportSubmission.TriageState.NEEDS_REVIEW:
@@ -127,8 +142,9 @@ def request_assessment(submission_id: int, reviewer: Employee) -> TriageEngineJo
                 policy_version=policy.version,
                 profile=profile,
                 config_digest=digest,
+                configuration_snapshot=profile_config,
                 input_digest=_digest(payload),
-                visible_to_reviewers=settings.TRIAGE_ENGINE_MODE == "review",
+                visible_to_reviewers=engine_mode() == "review",
             )
     except IntegrityError as exc:
         raise ValidationError(
@@ -139,14 +155,14 @@ def request_assessment(submission_id: int, reviewer: Employee) -> TriageEngineJo
 def reviewable_result(job: TriageEngineJob, submission: ReportSubmission) -> bool:
     """Keep shadow, stale and superseded results out of the review interface."""
     if (
-        settings.TRIAGE_ENGINE_MODE != "review"
+        engine_mode() != "review"
         or not job.visible_to_reviewers
         or job.status != TriageEngineJob.Status.COMPLETED
         or submission.triage_state != ReportSubmission.TriageState.NEEDS_REVIEW
     ):
         return False
     try:
-        _, profile, digest = _configuration()
+        _, profile, digest, _ = _configuration()
         _policy(job.policy_version)
         return (profile, digest) == (job.profile, job.config_digest) and _digest(
             _payload(submission, profile)
@@ -177,8 +193,11 @@ def _json_request(url: str, payload: dict[str, Any] | None = None) -> Any:
         if len(body) > MAX_RESPONSE_BYTES:
             raise EngineError("The engine response exceeded the size limit.")
         return json.loads(body)
+    except HTTPError as exc:
+        raise EngineError(
+            f"The engine rejected the request (HTTP {exc.code})."
+        ) from exc
     except (
-        HTTPError,
         URLError,
         TimeoutError,
         OSError,
@@ -189,14 +208,15 @@ def _json_request(url: str, payload: dict[str, Any] | None = None) -> Any:
 
 
 def _evaluate(
-    base_url: str, job: TriageEngineJob, payload: dict[str, Any]
+    base_url: str,
+    job: TriageEngineJob,
+    payload: dict[str, Any],
+    profile_config: dict[str, Any],
 ) -> dict[str, Any]:
-    config = _json_request(f"{base_url}/api/v1/configs/{job.profile}")
-    if not isinstance(config, dict) or _digest(config) != job.config_digest:
-        raise EngineError(
-            "The engine configuration does not match the approved digest."
-        )
-    result = _json_request(f"{base_url}/api/v1/triage", payload)
+    result = _json_request(
+        f"{base_url}/api/v1/triage/configured",
+        {"configuration": profile_config, "report": payload},
+    )
     if not isinstance(result, dict) or result.get("profile_used") != job.profile:
         raise EngineError("The engine returned an invalid profile or response.")
     if result.get("status") not in ("completed", "abstained", "degraded"):
@@ -235,7 +255,7 @@ def process_job(job_id: int) -> bool:
         return False
     job = TriageEngineJob.objects.select_related("submission").get(pk=job_id)
     try:
-        base_url, profile, digest = _configuration()
+        base_url, profile, digest, profile_config = _configuration()
         if (profile, digest) != (job.profile, job.config_digest):
             raise ValidationError("The approved engine configuration has changed.")
         _policy(job.policy_version)
@@ -246,12 +266,12 @@ def process_job(job_id: int) -> bool:
             raise ValidationError(
                 "The report changed after the assessment was requested."
             )
-        result = _evaluate(base_url, job, payload)
+        result = _evaluate(base_url, job, payload, profile_config)
         with transaction.atomic():
             submission = ReportSubmission.objects.select_for_update().get(
                 pk=job.submission_id
             )
-            _, current_profile, current_digest = _configuration()
+            _, current_profile, current_digest, _ = _configuration()
             _policy(job.policy_version)
             if (
                 submission.triage_state != ReportSubmission.TriageState.NEEDS_REVIEW
@@ -261,16 +281,17 @@ def process_job(job_id: int) -> bool:
                 raise ValidationError(
                     "The report changed before the assessment completed."
                 )
+            visible = job.visible_to_reviewers and engine_mode() == "review"
             saved = TriageEngineJob.objects.filter(pk=job_id, lease=lease).update(
                 status=TriageEngineJob.Status.COMPLETED,
                 result=result,
                 finished_at=timezone.now(),
                 error="",
+                visible_to_reviewers=visible,
             )
             if (
                 saved
-                and job.visible_to_reviewers
-                and settings.TRIAGE_ENGINE_MODE == "review"
+                and visible
                 and result["safety_assessment"]["escalation_triggered"]
                 and not submission.urgent_review
             ):

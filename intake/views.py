@@ -73,7 +73,11 @@ from intake.services.review import (
     reject_out_of_scope,
     reopen_final_decision,
 )
-from intake.services.triage.engine import request_assessment, reviewable_result
+from intake.services.triage.engine import (
+    engine_mode,
+    request_assessment,
+    reviewable_result,
+)
 
 from .chat import (
     nearby_open_work,
@@ -387,7 +391,7 @@ class ReviewQueueView(ReviewerMixin, ListView):  # type: ignore[type-arg]
             urgent=Count("pk", filter=Q(queue_urgent=True)),
             processing=Count("pk", filter=Q(triage_state="RECEIVED")),
         )
-        context["engine_mode"] = settings.TRIAGE_ENGINE_MODE
+        context["engine_mode"] = engine_mode()
         return context
 
 
@@ -480,7 +484,7 @@ class ReviewDetailView(ReviewerMixin, DetailView):  # type: ignore[type-arg]
         context["report_photos"] = ReportPhotoSlot.objects.filter(
             draft__submission=self.object, asset_id__isnull=False
         ).order_by("created_at", "pk")
-        context["engine_mode"] = settings.TRIAGE_ENGINE_MODE
+        context["engine_mode"] = engine_mode()
         job = self.object.engine_jobs.first()
         context["engine_job"] = job
         if job is not None and reviewable_result(job, self.object):

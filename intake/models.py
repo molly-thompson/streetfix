@@ -836,6 +836,7 @@ class TriageEngineJob(models.Model):
     policy_version = models.PositiveIntegerField()
     profile = models.CharField(max_length=64)
     config_digest = models.CharField(max_length=64)
+    configuration_snapshot = models.JSONField(default=dict)
     input_digest = models.CharField(max_length=64)
     visible_to_reviewers = models.BooleanField(default=False)
     lease = models.UUIDField(null=True, editable=False)
