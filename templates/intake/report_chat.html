@@ -6,6 +6,10 @@
 
 {% block extra_head %}
   <link href="{% static 'css/report-chat.css' %}" rel="stylesheet">
+  {% if chat_config.map %}
+    <link href="{% static 'vendor/leaflet/leaflet.css' %}" rel="stylesheet">
+    <link href="{% static 'css/intake.css' %}" rel="stylesheet">
+  {% endif %}
 {% endblock extra_head %}
 
 {% block content %}
@@ -109,7 +113,15 @@
 {% endblock content %}
 
 {% block extra_js %}
-  <script>window.STREETFIX_API = "";</script>
+  {{ chat_config|json_script:"chat-config" }}
+  <script>
+    window.REPORT_CHAT_API = "";
+    window.REPORT_CHAT_SITE = "{{ site_name|escapejs }}";
+  </script>
+  {% if chat_config.map %}
+    <script src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+    <script src="{% static 'js/report-map.js' %}"></script>
+  {% endif %}
   <script src="{% static 'js/report-chat-i18n.js' %}"></script>
   <script src="{% static 'js/report-chat.js' %}"></script>
 {% endblock extra_js %}

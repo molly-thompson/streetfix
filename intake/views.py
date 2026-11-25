@@ -6,6 +6,7 @@ create reports, look up their status and find possible duplicates.
 
 import logging
 from typing import Any
+from uuid import UUID
 
 from django.conf import settings
 from django.contrib import messages
@@ -15,6 +16,7 @@ from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -40,10 +42,25 @@ from intake.forms import (
     ReopenReportForm,
 )
 from intake.models import ReportPhotoSlot, ReportSubmission
+from intake.report_views import session_key
 from intake.services.acceptance import accept_report
 from intake.services.duplicates import duplicate_candidates, link_duplicate
+from intake.services.map_config import public_map_config
 from intake.services.photo_delivery import PhotoUnavailableError, open_report_photo
+from intake.services.photo_upload import photo_upload_enabled
 from intake.services.queue import pending_reviews
+from intake.services.rate_limit import (
+    RATE_LIMITED,
+    REPORT_SUBMISSION,
+    client_address,
+    reserve,
+)
+from intake.services.reference import (
+    display_reference,
+    public_status,
+    reference_for_work_item,
+    submission_for_reference,
+)
 from intake.services.review import (
     correct_location,
     recover_received,
@@ -54,12 +71,13 @@ from intake.services.review import (
 from .chat import (
     nearby_open_work,
     parse_report,
-    reference_for,
-    submit_report,
-    work_item_for_reference,
+    submit_chat_report,
 )
 
 logger = logging.getLogger(__name__)
+
+# Placeholder IDs in the photo verify URL; the chat fills in the real ones.
+ZERO_ID = UUID(int=0)
 
 
 @method_decorator(login_not_required, name="dispatch")
@@ -78,6 +96,13 @@ class ReportChatView(TemplateView):
         context = super().get_context_data(**kwargs)
         context["show_staff_panel"] = self.request.user.is_staff
         context["report_form_enabled"] = settings.INTAKE_PUBLIC_REPORTING_ENABLED
+        context["chat_config"] = {
+            "map": public_map_config(),
+            "photos": settings.INTAKE_PUBLIC_REPORTING_ENABLED
+            and photo_upload_enabled(),
+            "photoAuthorizeUrl": reverse("intake:photo_authorize"),
+            "photoVerifyUrl": reverse("intake:photo_verify", args=[ZERO_ID, ZERO_ID]),
+        }
         return context
 
 
@@ -90,18 +115,24 @@ class OldReportLinkView(RedirectView):
 
 @method_decorator(login_not_required, name="dispatch")
 class CreateReportView(View):
-    """Store a report from the chat and return its public reference."""
+    """Save a report from the chat for review and return its public reference."""
 
     http_method_names = ["post"]
 
     def post(self, request: HttpRequest) -> JsonResponse:
-        """Create the work item and submission for one chat report."""
+        """Limit submissions per address, then record one chat report."""
         try:
-            work_item, _ = submit_report(parse_report(request.body))
+            report = parse_report(request.body)
+            reserve(REPORT_SUBMISSION, client_address(request))
+            submission = submit_chat_report(report, session_key=session_key(request))
         except ValidationError as error:
-            return JsonResponse({"error": " ".join(error.messages)}, status=400)
+            status = 429 if error.code == RATE_LIMITED else 400
+            return JsonResponse({"error": " ".join(error.messages)}, status=status)
         return JsonResponse(
-            {"reference": reference_for(work_item), "status": work_item.status.label},
+            {
+                "reference": display_reference(submission),
+                "status": public_status(submission),
+            },
             status=201,
         )
 
@@ -113,15 +144,15 @@ class ReportStatusView(View):
     http_method_names = ["get"]
 
     def get(self, request: HttpRequest, reference: str) -> JsonResponse:
-        """Look up the work item behind a public reference."""
-        work_item = work_item_for_reference(reference)
-        if work_item is None:
+        """Look up the report behind a public reference."""
+        submission = submission_for_reference(reference)
+        if submission is None:
             return JsonResponse({"error": "No report has that reference."}, status=404)
         return JsonResponse(
             {
-                "reference": reference_for(work_item),
-                "status": work_item.status.label,
-                "issue": str(work_item.issue_type),
+                "reference": display_reference(submission),
+                "status": public_status(submission),
+                "issue": str(submission.reported_issue_type or ""),
             }
         )
 
@@ -141,12 +172,13 @@ class NearbyReportView(View):
         work_item = nearby_open_work(
             request.GET.get("category", ""), request.GET.get("postcode", "")
         )
-        if work_item is None:
+        reference = reference_for_work_item(work_item) if work_item else None
+        if work_item is None or reference is None:
             return JsonResponse({"match": None})
         return JsonResponse(
             {
                 "match": {
-                    "reference": reference_for(work_item),
+                    "reference": reference,
                     "days_ago": (timezone.now() - work_item.created_at).days,
                     "status": work_item.status.label,
                 }

@@ -64,3 +64,34 @@ def test_existing_submission_link_survives_intake_lifecycle_migration() -> None:
         assert submission.longitude is None
     finally:
         MigrationExecutor(connection).migrate(latest)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_existing_submissions_get_distinct_random_references() -> None:
+    """Reports saved before references existed each receive their own code."""
+    executor = MigrationExecutor(connection)
+    latest = executor.loader.graph.leaf_nodes()
+    before = [
+        ("intake", "0005_public_report_photos_and_rate_limits"),
+        next(node for node in latest if node[0] == "employees"),
+    ]
+    try:
+        executor.migrate(before)
+        old = executor.loader.project_state(before).apps.get_model(
+            "intake", "ReportSubmission"
+        )
+        ids = [
+            old.objects.create(updates_requested=False, description=f"Report {n}").pk
+            for n in range(3)
+        ]
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(latest)
+        new = executor.loader.project_state(latest).apps.get_model(
+            "intake", "ReportSubmission"
+        )
+        references = [new.objects.get(pk=pk).public_reference for pk in ids]
+        assert len(set(references)) == 3
+        assert all(len(reference) == 8 for reference in references)
+    finally:
+        MigrationExecutor(connection).migrate(latest)

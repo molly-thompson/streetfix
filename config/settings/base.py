@@ -115,6 +115,9 @@ INTAKE_PUBLIC_REPORTING_ENABLED = os.environ.get(
 # clients cannot forge. Used to rate limit public actions per address.
 INTAKE_CLIENT_IP_HEADER = os.environ.get("INTAKE_CLIENT_IP_HEADER", "REMOTE_ADDR")
 
+# Text shown before a reporter's random reference code. Empty by default.
+INTAKE_REFERENCE_PREFIX = os.environ.get("INTAKE_REFERENCE_PREFIX", "")
+
 # Name of a signed Cloudinary upload preset that uses authenticated delivery.
 # Report photos are disabled until it is configured.
 INTAKE_PHOTO_UPLOAD_PRESET = os.environ.get("INTAKE_PHOTO_UPLOAD_PRESET", "")

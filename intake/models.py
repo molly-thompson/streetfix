@@ -1,5 +1,6 @@
 """Public reporting and intake models."""
 
+import secrets
 from collections.abc import Iterable
 from typing import Any
 from uuid import uuid4
@@ -9,6 +10,17 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, router, transaction
 from django.db.models import Q
 from django.db.models.base import ModelBase
+
+PUBLIC_REFERENCE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+PUBLIC_REFERENCE_LENGTH = 8
+
+
+def new_public_reference() -> str:
+    """Return a random, unambiguous code that cannot be guessed or counted."""
+    return "".join(
+        secrets.choice(PUBLIC_REFERENCE_ALPHABET)
+        for _ in range(PUBLIC_REFERENCE_LENGTH)
+    )
 
 
 class ContactMethod(models.Model):
@@ -144,6 +156,13 @@ class ReportSubmission(models.Model):
         default=TriageState.RECEIVED,
     )
     urgent_review = models.BooleanField(default=False)
+    public_reference = models.CharField(
+        max_length=12,
+        unique=True,
+        default=new_public_reference,
+        editable=False,
+        help_text="Random code a reporter can quote; reveals nothing about volume.",
+    )
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

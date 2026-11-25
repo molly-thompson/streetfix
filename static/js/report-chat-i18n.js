@@ -1,5 +1,5 @@
 /* Customer-facing text in six languages. Translations are AI-drafted: get a native speaker to check before real use. */
-const L={
+const CHAT_TEXT={
 en:{
 sub:"Report a problem on a street or public space",st0:"Problem",st1:"Location",st2:"Photo",st3:"Urgency",st4:"Updates",st5:"Send",
 send:"Send",who:"Assistant",add_photo:"Add a photo",
@@ -8,7 +8,7 @@ ph_desc:"Add details, or choose No, that's all",ph_pc:"Postcode, for example B15
 ph_lm_opt:"Exact spot, or choose Skip",ph_photo:"Use the camera button to add a photo",ph_choose:"Choose an option above",ph_email:"Email address",
 ph_phone:"Mobile or phone number",ph_name:"Your first name",ph_edit:"Choose what to change",ph_sent:"Report sent",ph_seen:"Describe what you can see",
 ai_trans:"",
-hi:"Hi, I'm the Street Fix assistant. I'll help you report a problem on a street, pavement or public space. It takes about 2 minutes.",
+hi:"Hi, I'm the {site} assistant. I'll help you report a problem on a street, pavement or public space. It takes about 2 minutes.",
 auto:"I'm an automated assistant. I'll suggest a category and priority, and a member of the triage team checks every report before anything is decided.",
 emerg:"If someone is in immediate danger, call 999.",
 q_cat:"What's the problem?",something_else:"Something else",q_other:"In a few words, what's the problem?",tell_more:"Please tell me what you can see.",
@@ -66,7 +66,7 @@ ph_desc:"Dodaj szczegóły lub wybierz „Nie, to wszystko”",ph_pc:"Kod poczto
 ph_lm_opt:"Dokładne miejsce lub wybierz „Pomiń”",ph_photo:"Użyj przycisku aparatu, aby dodać zdjęcie",ph_choose:"Wybierz jedną z opcji powyżej",ph_email:"Adres e-mail",
 ph_phone:"Numer telefonu",ph_name:"Twoje imię",ph_edit:"Wybierz, co chcesz zmienić",ph_sent:"Zgłoszenie wysłane",ph_seen:"Opisz, co widzisz",
 ai_trans:"Ten czat został przetłumaczony przez AI. Każde zgłoszenie sprawdza człowiek.",
-hi:"Cześć, jestem asystentem Street Fix. Pomogę Ci zgłosić problem na ulicy, chodniku lub w przestrzeni publicznej. Zajmie to około 2 minut.",
+hi:"Cześć, jestem asystentem {site}. Pomogę Ci zgłosić problem na ulicy, chodniku lub w przestrzeni publicznej. Zajmie to około 2 minut.",
 auto:"Jestem automatycznym asystentem. Zaproponuję kategorię i priorytet, a pracownik zespołu ds. zgłoszeń sprawdzi każde zgłoszenie, zanim cokolwiek zostanie postanowione.",
 emerg:"Jeśli ktoś jest w bezpośrednim niebezpieczeństwie, zadzwoń pod 999.",
 q_cat:"Na czym polega problem?",something_else:"Coś innego",q_other:"Opisz w kilku słowach, na czym polega problem.",tell_more:"Opisz, co widzisz.",
@@ -124,7 +124,7 @@ ph_desc:"تفصیل لکھیں، یا \"نہیں، بس اتنا ہی\" چنیں
 ph_lm_opt:"صحیح جگہ لکھیں، یا \"چھوڑ دیں\" چنیں",ph_photo:"تصویر شامل کرنے کے لیے کیمرے کا بٹن استعمال کریں",ph_choose:"اوپر سے کوئی آپشن چنیں",ph_email:"ای میل ایڈریس",
 ph_phone:"موبائل یا فون نمبر",ph_name:"آپ کا پہلا نام",ph_edit:"چنیں کہ کیا بدلنا ہے",ph_sent:"رپورٹ بھیج دی گئی",ph_seen:"جو نظر آ رہا ہے وہ بیان کریں",
 ai_trans:"اس چیٹ کا ترجمہ AI نے کیا ہے۔ ہر رپورٹ کو ایک انسان چیک کرتا ہے۔",
-hi:"ہیلو، میں Street Fix کا معاون ہوں۔ میں گلی، فٹ پاتھ یا عوامی جگہ پر کسی مسئلے کی اطلاع دینے میں آپ کی مدد کروں گا۔ اس میں تقریباً 2 منٹ لگتے ہیں۔",
+hi:"ہیلو، میں {site} کا معاون ہوں۔ میں گلی، فٹ پاتھ یا عوامی جگہ پر کسی مسئلے کی اطلاع دینے میں آپ کی مدد کروں گا۔ اس میں تقریباً 2 منٹ لگتے ہیں۔",
 auto:"میں ایک خودکار معاون ہوں۔ میں زمرہ اور ترجیح تجویز کروں گا، اور کوئی بھی فیصلہ ہونے سے پہلے ٹرائیج ٹیم کا ایک رکن ہر رپورٹ چیک کرتا ہے۔",
 emerg:"اگر کسی کو فوری خطرہ ہو تو 999 پر کال کریں۔",
 q_cat:"مسئلہ کیا ہے؟",something_else:"کچھ اور",q_other:"چند الفاظ میں بتائیں، مسئلہ کیا ہے؟",tell_more:"براہ کرم بتائیں کہ آپ کو کیا نظر آ رہا ہے۔",
@@ -182,7 +182,7 @@ ph_desc:"ਵੇਰਵੇ ਲਿਖੋ, ਜਾਂ \"ਨਹੀਂ, ਬੱਸ ਇ�
 ph_lm_opt:"ਸਹੀ ਥਾਂ ਲਿਖੋ, ਜਾਂ \"ਛੱਡੋ\" ਚੁਣੋ",ph_photo:"ਫ਼ੋਟੋ ਜੋੜਨ ਲਈ ਕੈਮਰਾ ਬਟਨ ਵਰਤੋ",ph_choose:"ਉੱਪਰੋਂ ਕੋਈ ਵਿਕਲਪ ਚੁਣੋ",ph_email:"ਈਮੇਲ ਪਤਾ",
 ph_phone:"ਮੋਬਾਈਲ ਜਾਂ ਫ਼ੋਨ ਨੰਬਰ",ph_name:"ਤੁਹਾਡਾ ਪਹਿਲਾ ਨਾਮ",ph_edit:"ਚੁਣੋ ਕਿ ਕੀ ਬਦਲਣਾ ਹੈ",ph_sent:"ਰਿਪੋਰਟ ਭੇਜੀ ਗਈ",ph_seen:"ਜੋ ਦਿਖ ਰਿਹਾ ਹੈ ਉਹ ਦੱਸੋ",
 ai_trans:"ਇਸ ਚੈਟ ਦਾ ਅਨੁਵਾਦ AI ਨੇ ਕੀਤਾ ਹੈ। ਹਰ ਰਿਪੋਰਟ ਨੂੰ ਇੱਕ ਵਿਅਕਤੀ ਜਾਂਚਦਾ ਹੈ।",
-hi:"ਹੈਲੋ, ਮੈਂ Street Fix ਸਹਾਇਕ ਹਾਂ। ਮੈਂ ਗਲੀ, ਫੁੱਟਪਾਥ ਜਾਂ ਜਨਤਕ ਥਾਂ 'ਤੇ ਕਿਸੇ ਸਮੱਸਿਆ ਦੀ ਰਿਪੋਰਟ ਕਰਨ ਵਿੱਚ ਤੁਹਾਡੀ ਮਦਦ ਕਰਾਂਗਾ। ਇਸ ਵਿੱਚ ਲਗਭਗ 2 ਮਿੰਟ ਲੱਗਦੇ ਹਨ।",
+hi:"ਹੈਲੋ, ਮੈਂ {site} ਸਹਾਇਕ ਹਾਂ। ਮੈਂ ਗਲੀ, ਫੁੱਟਪਾਥ ਜਾਂ ਜਨਤਕ ਥਾਂ 'ਤੇ ਕਿਸੇ ਸਮੱਸਿਆ ਦੀ ਰਿਪੋਰਟ ਕਰਨ ਵਿੱਚ ਤੁਹਾਡੀ ਮਦਦ ਕਰਾਂਗਾ। ਇਸ ਵਿੱਚ ਲਗਭਗ 2 ਮਿੰਟ ਲੱਗਦੇ ਹਨ।",
 auto:"ਮੈਂ ਇੱਕ ਸਵੈਚਾਲਿਤ ਸਹਾਇਕ ਹਾਂ। ਮੈਂ ਸ਼੍ਰੇਣੀ ਅਤੇ ਤਰਜੀਹ ਦਾ ਸੁਝਾਅ ਦਿਆਂਗਾ, ਅਤੇ ਕੋਈ ਵੀ ਫ਼ੈਸਲਾ ਹੋਣ ਤੋਂ ਪਹਿਲਾਂ ਟ੍ਰਾਇਜ ਟੀਮ ਦਾ ਇੱਕ ਮੈਂਬਰ ਹਰ ਰਿਪੋਰਟ ਜਾਂਚਦਾ ਹੈ।",
 emerg:"ਜੇ ਕੋਈ ਤੁਰੰਤ ਖ਼ਤਰੇ ਵਿੱਚ ਹੈ, ਤਾਂ 999 'ਤੇ ਕਾਲ ਕਰੋ।",
 q_cat:"ਸਮੱਸਿਆ ਕੀ ਹੈ?",something_else:"ਕੁਝ ਹੋਰ",q_other:"ਕੁਝ ਸ਼ਬਦਾਂ ਵਿੱਚ ਦੱਸੋ, ਸਮੱਸਿਆ ਕੀ ਹੈ?",tell_more:"ਕਿਰਪਾ ਕਰਕੇ ਦੱਸੋ ਕਿ ਤੁਹਾਨੂੰ ਕੀ ਦਿਖ ਰਿਹਾ ਹੈ।",
@@ -240,7 +240,7 @@ ph_desc:"أضف تفاصيل، أو اختر «لا، هذا كل شيء»",ph_p
 ph_lm_opt:"المكان بالضبط، أو اختر «تخطَّ»",ph_photo:"استخدم زر الكاميرا لإضافة صورة",ph_choose:"اختر أحد الخيارات أعلاه",ph_email:"البريد الإلكتروني",
 ph_phone:"رقم الجوال أو الهاتف",ph_name:"اسمك الأول",ph_edit:"اختر ما تريد تغييره",ph_sent:"تم إرسال البلاغ",ph_seen:"صف ما تراه",
 ai_trans:"تمت ترجمة هذه المحادثة بالذكاء الاصطناعي. يراجع شخصٌ كل بلاغ.",
-hi:"مرحبًا، أنا مساعد Street Fix. سأساعدك في الإبلاغ عن مشكلة في شارع أو رصيف أو مكان عام. يستغرق ذلك نحو دقيقتين.",
+hi:"مرحبًا، أنا مساعد {site}. سأساعدك في الإبلاغ عن مشكلة في شارع أو رصيف أو مكان عام. يستغرق ذلك نحو دقيقتين.",
 auto:"أنا مساعد آلي. سأقترح فئة وأولوية، ويراجع أحد أعضاء فريق الفرز كل بلاغ قبل اتخاذ أي قرار.",
 emerg:"إذا كان أحد في خطر مباشر، اتصل بالرقم 999.",
 q_cat:"ما المشكلة؟",something_else:"شيء آخر",q_other:"ما المشكلة؟ صفها في بضع كلمات.",tell_more:"من فضلك أخبرني بما تراه.",
@@ -298,7 +298,7 @@ ph_desc:"Adăugați detalii sau alegeți „Nu, asta e tot”",ph_pc:"Cod poșta
 ph_lm_opt:"Locul exact sau alegeți „Omite”",ph_photo:"Folosiți butonul cu camera pentru a adăuga o fotografie",ph_choose:"Alegeți o opțiune de mai sus",ph_email:"Adresă de e-mail",
 ph_phone:"Număr de mobil sau de telefon",ph_name:"Prenumele dvs.",ph_edit:"Alegeți ce doriți să modificați",ph_sent:"Raport trimis",ph_seen:"Descrieți ce vedeți",
 ai_trans:"Această conversație a fost tradusă cu AI. Fiecare raport este verificat de o persoană.",
-hi:"Bună ziua, sunt asistentul Street Fix. Vă ajut să raportați o problemă pe o stradă, un trotuar sau într-un spațiu public. Durează aproximativ 2 minute.",
+hi:"Bună ziua, sunt asistentul {site}. Vă ajut să raportați o problemă pe o stradă, un trotuar sau într-un spațiu public. Durează aproximativ 2 minute.",
 auto:"Sunt un asistent automat. Voi sugera o categorie și o prioritate, iar un membru al echipei de triere verifică fiecare raport înainte de a se lua vreo decizie.",
 emerg:"Dacă cineva este în pericol imediat, sunați la 999.",
 q_cat:"Care este problema?",something_else:"Altceva",q_other:"În câteva cuvinte, care este problema?",tell_more:"Vă rog să-mi spuneți ce vedeți.",
@@ -348,15 +348,18 @@ sg_bent:"Indicatorul este îndoit sau deteriorat",sg_missing:"Indicatorul lipse�
 u_Urgent:"Periculos chiar acum",uh_Urgent:"Cineva s-ar putea răni azi",u_High:"Trebuie reparat curând",uh_High:"O problemă pentru cei care folosesc strada",
 u_Medium:"Nu e periculos, dar e o problemă",u_Low:"Minor sau doar estetic",u_unsure:"Nu sunt sigur"
 }};
-Object.assign(L.en,{err_send:"We couldn't send your report. Please check your connection and try again."});
-Object.assign(L.pl,{err_send:"Nie udało się wysłać zgłoszenia. Sprawdź połączenie i spróbuj ponownie."});
-Object.assign(L.ur,{err_send:"ہم آپ کی رپورٹ نہیں بھیج سکے۔ براہ کرم اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔"});
-Object.assign(L.pa,{err_send:"ਅਸੀਂ ਤੁਹਾਡੀ ਰਿਪੋਰਟ ਨਹੀਂ ਭੇਜ ਸਕੇ। ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਕਨੈਕਸ਼ਨ ਜਾਂਚੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"});
-Object.assign(L.ar,{err_send:"تعذّر إرسال بلاغك. يُرجى التحقق من اتصالك والمحاولة مرة أخرى."});
-Object.assign(L.ro,{err_send:"Nu am putut trimite raportul. Verificați conexiunea și încercați din nou."});
-Object.assign(L.en,{title:"Report a problem"});
-Object.assign(L.pl,{title:"Zgłoś problem"});
-Object.assign(L.ur,{title:"مسئلے کی اطلاع دیں"});
-Object.assign(L.pa,{title:"ਸਮੱਸਿਆ ਦੀ ਰਿਪੋਰਟ ਕਰੋ"});
-Object.assign(L.ar,{title:"أبلغ عن مشكلة"});
-Object.assign(L.ro,{title:"Raportați o problemă"});
+Object.assign(CHAT_TEXT.en,{err_send:"We couldn't send your report. Please check your connection and try again."});
+Object.assign(CHAT_TEXT.pl,{err_send:"Nie udało się wysłać zgłoszenia. Sprawdź połączenie i spróbuj ponownie."});
+Object.assign(CHAT_TEXT.ur,{err_send:"ہم آپ کی رپورٹ نہیں بھیج سکے۔ براہ کرم اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔"});
+Object.assign(CHAT_TEXT.pa,{err_send:"ਅਸੀਂ ਤੁਹਾਡੀ ਰਿਪੋਰਟ ਨਹੀਂ ਭੇਜ ਸਕੇ। ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਕਨੈਕਸ਼ਨ ਜਾਂਚੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"});
+Object.assign(CHAT_TEXT.ar,{err_send:"تعذّر إرسال بلاغك. يُرجى التحقق من اتصالك والمحاولة مرة أخرى."});
+Object.assign(CHAT_TEXT.ro,{err_send:"Nu am putut trimite raportul. Verificați conexiunea și încercați din nou."});
+Object.assign(CHAT_TEXT.en,{title:"Report a problem"});
+Object.assign(CHAT_TEXT.pl,{title:"Zgłoś problem"});
+Object.assign(CHAT_TEXT.ur,{title:"مسئلے کی اطلاع دیں"});
+Object.assign(CHAT_TEXT.pa,{title:"ਸਮੱਸਿਆ ਦੀ ਰਿਪੋਰਟ ਕਰੋ"});
+Object.assign(CHAT_TEXT.ar,{title:"أبلغ عن مشكلة"});
+Object.assign(CHAT_TEXT.ro,{title:"Raportați o problemă"});
+
+/* Added with the location map and signed photo upload. English only until translated; other languages fall back to it. */
+Object.assign(CHAT_TEXT.en,{q_map:"Would you like to mark the exact spot on a map? It helps the team find it.",map_label:"Map for choosing the location",map_hint:"Click or tap the map to place a pin.",map_use:"Use this spot",map_need_pin:"Place a pin on the map first, or skip this step.",map_pin_set:"Pin placed. Click the map again to move it.",map_privacy:"Loading the map shares your IP address with the map provider.",r_map:"Map pin",r_map_set:"Placed",err_upload:"The photo could not be uploaded. You can try again or skip it.",err_limit:"Too many reports have been sent from your connection. Please try again later."});

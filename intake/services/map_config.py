@@ -3,9 +3,11 @@
 import math
 import re
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.contrib.staticfiles.storage import staticfiles_storage
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,24 @@ class IntakeMapConfig:
     latitude: float
     longitude: float
     zoom: int
+
+
+def public_map_config() -> dict[str, Any] | None:
+    """Return the browser-safe map settings, with exact marker icon URLs."""
+    config = intake_map_config()
+    if config is None:
+        return None
+    return {
+        "tile_url": config.tile_url,
+        "attribution": config.attribution,
+        "latitude": config.latitude,
+        "longitude": config.longitude,
+        "zoom": config.zoom,
+        "icons": {
+            name: staticfiles_storage.url(f"vendor/leaflet/images/{name}.png")
+            for name in ("marker-icon", "marker-icon-2x", "marker-shadow")
+        },
+    }
 
 
 def intake_map_config() -> IntakeMapConfig | None:
