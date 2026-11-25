@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import pytest
 from allauth.account.models import EmailAddress
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
 from django.http import HttpResponse
 from django.test import Client
 from django.urls import reverse
@@ -74,6 +74,22 @@ def test_officers_land_on_their_jobs(
     response = sign_in(client, officer.user)
 
     assert response.headers["Location"] == reverse("employees:my_jobs")
+    assert client.get(response.headers["Location"]).status_code == 200
+
+
+def test_reviewers_land_on_the_triage_queue(
+    client: Client, make_employee: Callable[..., Employee]
+) -> None:
+    """A reviewer without manager permission can reach the triage dashboard."""
+    reviewer = make_employee("reviewer")
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    set_login_credentials(reviewer.user)
+
+    response = sign_in(client, reviewer.user)
+
+    assert response.headers["Location"] == reverse("intake:review_queue")
     assert client.get(response.headers["Location"]).status_code == 200
 
 

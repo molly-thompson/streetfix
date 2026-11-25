@@ -46,6 +46,8 @@ def home_url(user: User | AnonymousUser) -> str | None:
     is_employee = user.is_authenticated and Employee.objects.filter(user=user).exists()
     if is_employee and user.has_perm("employees.add_workassignment"):
         return reverse("employees:dashboard")
+    if is_employee and user.has_perm("intake.review_reportsubmission"):
+        return reverse("intake:review_queue")
     if is_employee:
         return reverse("employees:my_jobs")
     if user.is_staff:

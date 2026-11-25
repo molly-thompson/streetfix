@@ -25,6 +25,10 @@ site branding and theme settings.
   uploads. Every report is saved for central staff review, never straight into
   work, and gets a random reference code (with an optional deployment prefix).
   See `docs/triage-policy-lifecycle.md` before enabling the form or photos.
+- **Triage dashboards:** Authorized employee reviewers can inspect the
+  incoming queue and individual reports at `/review/`. Optional deterministic
+  duplicate assessments are disabled by default; see the triage policy
+  lifecycle documentation before enabling them.
 - **Triage dashboard:** Authorized reviewers can work through the review queue
   and request optional advisory engine assessments. Decision support is off
   until an administrator configures and approves it; see
