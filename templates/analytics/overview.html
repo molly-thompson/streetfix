@@ -5,31 +5,48 @@
 {% block content %}
   <section class="ui-stack">
     <div class="ui-page-header">
-      <h1>Analytics overview</h1>
-      <p>Welcome to the Analytics Overview</p>
+      <h1>Pattern discovery</h1>
+      <p>
+        Exploratory findings from {{ record_count }} operational records
+        in {{ department_name }}.
+      </p>
     </div>
 
-    <div class="ui-card">
-      <div class="ui-card__body">
-        <div class="ui-analytics-grid">
-          <article class="ui-metric ui-metric--primary">
-            <h2>Total Views</h2>
-            <p class="ui-metric__value">0</p>
+    {% if findings %}
+      <div class="ui-stack">
+        {% for finding in findings %}
+          <article class="ui-card">
+            <div class="ui-card__body ui-stack">
+              <h2>{{ finding.title }}</h2>
+              <p>{{ finding.description }}</p>
+              <p>
+                <strong>Variables:</strong>
+                {{ finding.variables|join:", " }}
+              </p>
+              <ul>
+                {% for observation in finding.observations %}
+                  <li>{{ observation }}</li>
+                {% endfor %}
+              </ul>
+              <p><strong>Significance:</strong> {{ finding.significance }}</p>
+              <p><strong>Limitation:</strong> {{ finding.caveat }}</p>
+              {% if finding.supporting_record_ids %}
+                <p>
+                  <strong>Supporting work item IDs:</strong>
+                  {{ finding.supporting_record_ids|join:", " }}
+                </p>
+              {% endif %}
+            </div>
           </article>
-          <article class="ui-metric ui-metric--success">
-            <h2>Conversions</h2>
-            <p class="ui-metric__value">0</p>
-          </article>
-          <article class="ui-metric ui-metric--warning">
-            <h2>Revenue</h2>
-            <p class="ui-metric__value">$0</p>
-          </article>
-          <article class="ui-metric ui-metric--secondary">
-            <h2>Users</h2>
-            <p class="ui-metric__value">0</p>
-          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ui-card">
+        <div class="ui-card__body">
+          <h2>No sufficiently strong findings</h2>
+          <p>{{ limitations }}</p>
         </div>
       </div>
-    </div>
+    {% endif %}
   </section>
 {% endblock content %}

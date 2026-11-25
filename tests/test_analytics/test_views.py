@@ -1,10 +1,12 @@
 """Tests for analytics application views."""
 
 import pytest
+from django.contrib.auth.models import Permission
 from django.test import Client
 from django.urls import resolve, reverse
 
 from analytics.views import AnalyticsOverview
+from employees.organisation_models import Department
 
 pytestmark = pytest.mark.django_db
 
@@ -55,5 +57,42 @@ def test_analytics_overview_view_context_contains_expected_content(
     response = manager_client.get(reverse("analytics:overview"))
     content = response.content.decode()
 
-    assert "Analytics Overview" in content
-    assert "Welcome to the Analytics Overview" in content
+    assert "Pattern discovery" in content
+    assert "operational records" in content
+
+
+def test_analytics_overview_requires_manager_permission(
+    client: Client,
+    make_employee,
+) -> None:
+    """Ordinary employee accounts cannot open the analytics view."""
+    employee = make_employee("analyst")
+    client.force_login(employee.user)
+
+    response = client.get(reverse("analytics:overview"))
+
+    assert response.status_code == 403
+
+
+def test_analytics_overview_only_reads_employee_department(
+    client: Client,
+    make_employee,
+    make_work_item,
+) -> None:
+    """A manager's findings must not include records from another department."""
+    manager = make_employee("department-manager")
+    manager.user.user_permissions.add(
+        Permission.objects.get(codename="add_workassignment")
+    )
+    own_department = Department.objects.create(name="Own analytics department")
+    manager.department = own_department
+    manager.save(update_fields=("department",))
+    make_work_item(department=own_department.name)
+    other_department = Department.objects.create(name="Other analytics department")
+    make_work_item(issue_code="OTHER_LIGHT", department=other_department.name)
+    client.force_login(manager.user)
+
+    response = client.get(reverse("analytics:overview"))
+
+    assert response.status_code == 200
+    assert own_department.name in response.content.decode()
