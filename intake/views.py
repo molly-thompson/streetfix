@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import QuerySet
+from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +46,7 @@ from intake.report_views import session_key
 from intake.services.acceptance import accept_report
 from intake.services.duplicates import duplicate_candidates, link_duplicate
 from intake.services.map_config import public_map_config
+from intake.services.matching import assess_duplicates, current_assessments
 from intake.services.photo_delivery import PhotoUnavailableError, open_report_photo
 from intake.services.photo_upload import photo_upload_enabled
 from intake.services.queue import pending_reviews
@@ -67,6 +68,7 @@ from intake.services.review import (
     reject_out_of_scope,
     reopen_final_decision,
 )
+from site_settings.configuration import get_site_configuration
 
 from .chat import (
     nearby_open_work,
@@ -367,6 +369,46 @@ class ReviewQueueView(ReviewerMixin, ListView):  # type: ignore[type-arg]
         """Order urgent reports first, then oldest first."""
         return pending_reviews()
 
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Summarize the full queue, not just the current page."""
+        context = super().get_context_data(**kwargs)
+        context["queue_counts"] = self.get_queryset().aggregate(
+            total=Count("pk"),
+            urgent=Count("pk", filter=Q(queue_urgent=True)),
+            processing=Count("pk", filter=Q(triage_state="RECEIVED")),
+            ready=Count("pk", filter=Q(triage_state="NEEDS_REVIEW")),
+        )
+        return context
+
+
+def review_dashboard_context(submission: ReportSubmission) -> dict[str, Any]:
+    """Provide candidate work and any current advisory results."""
+    search = duplicate_candidates(submission)
+    assessments: dict[int, dict[str, Any]] = {}
+    matching_message = ""
+    matching_enabled = (
+        get_site_configuration().duplicate_matching_enabled
+        and submission.triage_state == ReportSubmission.TriageState.NEEDS_REVIEW
+    )
+    if matching_enabled:
+        try:
+            assessments, matching_message = current_assessments(submission, search)
+        except Exception:
+            logger.exception("Could not load matching assessment for %s", submission.pk)
+            matching_message = "Matching is unavailable. Use the existing work search."
+    return {
+        "duplicate_search": search,
+        "matching_enabled": matching_enabled,
+        "matching_message": matching_message,
+        "matching_candidates": [
+            {"candidate": candidate, "assessment": assessments.get(candidate.work.pk)}
+            for candidate in search.candidates
+        ],
+        "report_photos": ReportPhotoSlot.objects.filter(
+            draft__submission=submission, asset_id__isnull=False
+        ).order_by("created_at", "pk"),
+    }
+
 
 def finalized_reports() -> QuerySet[ReportSubmission]:
     """Find final decisions that can be reopened without changing work."""
@@ -453,11 +495,37 @@ class ReviewDetailView(ReviewerMixin, DetailView):  # type: ignore[type-arg]
                 "longitude": self.object.longitude,
             }
         )
-        context["duplicate_search"] = duplicate_candidates(self.object)
-        context["report_photos"] = ReportPhotoSlot.objects.filter(
-            draft__submission=self.object, asset_id__isnull=False
-        ).order_by("created_at", "pk")
+        context.update(review_dashboard_context(self.object))
         return context
+
+
+@method_decorator(never_cache, name="dispatch")
+class AssessDuplicatesView(ReviewerMixin, View):
+    """Run an explicit advisory assessment for a report in review."""
+
+    def post(self, request: HttpRequest, pk: int) -> HttpResponse:
+        """Record the assessment or explain why it could not be run."""
+        if not get_site_configuration().duplicate_matching_enabled:
+            raise PermissionDenied
+        submission = get_object_or_404(
+            pending_reviews(),
+            pk=pk,
+            triage_state=ReportSubmission.TriageState.NEEDS_REVIEW,
+        )
+        reviewer = get_object_or_404(Employee, user_id=request.user.pk)
+        try:
+            assess_duplicates(submission.pk, reviewer=reviewer)
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        except Exception:
+            logger.exception("Could not assess duplicate matches for %s", submission.pk)
+            messages.error(
+                request,
+                "Matching could not be completed. Use the existing work search.",
+            )
+        else:
+            messages.success(request, "Advisory matching assessment completed.")
+        return redirect("intake:review_detail", pk=submission.pk)
 
 
 @method_decorator(never_cache, name="dispatch")
@@ -489,10 +557,7 @@ class CorrectLocationView(ReviewerMixin, View):
             {
                 "submission": submission,
                 "location_form": form,
-                "duplicate_search": duplicate_candidates(submission),
-                "report_photos": ReportPhotoSlot.objects.filter(
-                    draft__submission=submission, asset_id__isnull=False
-                ).order_by("created_at", "pk"),
+                **review_dashboard_context(submission),
             },
             status=400,
         )

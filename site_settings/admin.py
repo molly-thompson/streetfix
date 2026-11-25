@@ -23,6 +23,7 @@ class SiteConfigurationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
                 )
             },
         ),
+        ("Report review", {"fields": ("duplicate_matching_enabled",)}),
     ]
 
     def has_add_permission(self, request: HttpRequest) -> bool:

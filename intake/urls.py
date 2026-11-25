@@ -14,6 +14,7 @@ from .report_views import (
 )
 from .views import (
     AcceptReportView,
+    AssessDuplicatesView,
     CorrectLocationView,
     CreateReportView,
     DuplicateReviewView,
@@ -57,6 +58,11 @@ urlpatterns = [
         "review/finalized/<int:pk>/", ReopenReportView.as_view(), name="reopen_report"
     ),
     path("review/<int:pk>/", ReviewDetailView.as_view(), name="review_detail"),
+    path(
+        "review/<int:pk>/assess-duplicates/",
+        AssessDuplicatesView.as_view(),
+        name="assess_duplicates",
+    ),
     path(
         "review/<int:pk>/recover/", RecoverReportView.as_view(), name="recover_report"
     ),

@@ -54,6 +54,12 @@ class SiteConfiguration(models.Model):
         default="0.200",
     )
     duplicate_window_days = models.PositiveIntegerField(default=30)
+    duplicate_matching_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "Enable reviewer-requested advisory matching after local evaluation."
+        ),
+    )
     waiting_too_long_days = models.PositiveIntegerField(default=7)
     depot_name = models.CharField(
         max_length=150,

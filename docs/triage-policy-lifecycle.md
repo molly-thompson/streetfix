@@ -69,6 +69,42 @@ The proximity search checks at most 500 recent records in the bounding area
 and displays at most 20; it is not an exhaustive duplicate check. Manual work
 item lookup remains available.
 
+The review queue and report detail dashboards require both an employee record
+and the review permission. Employees with review permission who are not
+managers land on the queue after signing in. The queue includes reports still
+awaiting processing; its counts cover all pages.
+
+An optional deterministic ReportMatch assessment can be enabled in the
+database-backed Site configuration in Django Admin after a deployment
+evaluates it. It
+only runs when an authorized reviewer requests it on a report in review, and
+requires an active policy with both duplicate-search settings and a map pin.
+It assesses only the displayed proximity candidates, using the earliest linked
+submission's description for each work item; work without a usable original
+description is left unassessed. The original submission time is compared with
+the new report's time, while candidate search age is based on work creation.
+The policy's distance and age are used as matching windows; the detector's
+other score thresholds are fixed starting points, not locally validated
+probabilities. The detector's bundled English-language text rules may miss
+other languages or terminology.
+
+The assessment stays inside the application and does not send data to Gemini.
+An append-only triage attempt records the reviewer, engine version, policy,
+configuration, candidate IDs, results and truncation. It omits contact details
+and photos, although generated signal explanations may contain report text.
+Results are not displayed as current if the relevant report, candidate inputs,
+policy, or candidate set changes; the reviewer can run them again. Matching
+errors are logged and surfaced without preventing manual lookup or review.
+Suggested classifications never link work, and related/recurring suggestions
+do not create a relationship between work items.
+
+Before enabling it, staff should review representative local examples and
+shadow reports, including missed duplicates, different issues at the same
+location, recurrences, and incomplete or multilingual descriptions. The
+included detector's small sample benchmark does not establish real-world
+accuracy. Agree review and monitoring criteria locally and disable the setting
+if results are not useful or safe.
+
 An authorized reviewer may reopen a mistaken out-of-scope or duplicate
 decision with a reason; the prior decision and any former work link remain in
 the audit history. Reopening does not change the linked work. Accepted reports
