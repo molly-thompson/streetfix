@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Your reports · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <h1>Your reports</h1>
+  <p>Follow the progress of problems you have reported. Reports sent from this browser appear here automatically.</p>
+
+  <form class="ui-form ui-stack" method="post">
+    {% csrf_token %}
+    <input name="action" type="hidden" value="add">
+    <div class="ui-field">
+      <label class="ui-label" for="reference">Add a report by its reference</label>
+      <input
+        id="reference"
+        class="ui-input"
+        autocomplete="off"
+        maxlength="40"
+        name="reference"
+        required
+        type="text"
+      >
+      <p class="ui-help">The reference was shown when you sent your report.</p>
+    </div>
+    <button class="ui-button" type="submit">Add report</button>
+  </form>
+
+  {% if reports %}
+    <div class="ui-table-wrap ui-space-top">
+      <table class="ui-table">
+        <caption class="ui-visually-hidden">Reports you are following</caption>
+        <thead>
+          <tr>
+            <th scope="col">Reference</th>
+            <th scope="col">Problem</th>
+            <th scope="col">Status</th>
+            <th scope="col">Sent</th>
+            <th scope="col"><span class="ui-visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+            <tr>
+              <th scope="row">{{ report.reference }}</th>
+              <td>{{ report.issue }}</td>
+              <td>
+                <span class="ui-status">{{ report.status }}</span>
+              </td>
+              <td>
+                {{ report.submitted_at|date:"j M Y" }}
+                {% if not report.is_finished %}({{ report.days_open }} day{{ report.days_open|pluralize }} ago){% endif %}
+              </td>
+              <td>
+                <form method="post">
+                  {% csrf_token %}
+                  <input name="action" type="hidden" value="remove">
+                  <input name="reference" type="hidden" value="{{ report.reference }}">
+                  <button class="ui-button ui-button--secondary ui-button--small" type="submit">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="ui-empty-state ui-space-top">You are not following any reports yet.</p>
+  {% endif %}
+
+  <p class="ui-space-top">
+    <a href="{% url 'intake:form_intake' %}">Report a problem</a>
+    {% if public_search_enabled %}
+      · <a href="{% url 'intake:search_issues' %}">Search open issues</a>
+    {% endif %}
+  </p>
+{% endblock content %}
