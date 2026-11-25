@@ -31,9 +31,9 @@
   {% endif %}
   <p><a href="{% url 'intake:finalized_reports' %}">Review rejected or duplicate reports</a></p>
   {% if submissions %}
-    <div class="uk-overflow-auto">
-      <table class="uk-table uk-table-divider uk-table-middle">
-        <caption class="uk-text-left">Reports awaiting review</caption>
+    <div class="ui-table-wrap">
+      <table class="ui-table">
+        <caption class="ui-text-left">Reports awaiting review</caption>
         <thead>
           <tr>
             <th scope="col">Report</th>
@@ -67,7 +67,7 @@
     </div>
     {% if is_paginated %}
       <nav aria-label="Report pages">
-        <ul class="uk-pagination">
+        <ul class="ui-pagination">
           {% if page_obj.has_previous %}
             <li><a href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
           {% endif %}

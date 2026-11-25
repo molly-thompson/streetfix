@@ -77,6 +77,23 @@ def test_employee_dashboard_view_extends_manager_layout(
     )
 
 
+@pytest.mark.parametrize(
+    ("client_fixture", "page"),
+    [
+        ("manager_client", "employees:dashboard"),
+        ("officer_client", "employees:my_jobs"),
+    ],
+)
+def test_employee_layouts_render_resolved_theme(
+    request: pytest.FixtureRequest, client_fixture: str, page: str
+) -> None:
+    """Manager and officer pages expose the tokens their stylesheets use."""
+    client: Client = request.getfixturevalue(client_fixture)
+    response = client.get(reverse(page))
+    assert response.status_code == 200
+    assert "--theme-primary:" in response.content.decode()
+
+
 def test_employee_dashboard_view_resolves_to_correct_view_class() -> None:
     """Test that the URL resolves to the EmployeeDashboardView class."""
     resolver_match = resolve("/employees/")

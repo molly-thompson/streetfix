@@ -11,29 +11,28 @@ const API_BASE=(typeof window.REPORT_CHAT_API==="string")?window.REPORT_CHAT_API
 const SITE=(typeof window.REPORT_CHAT_SITE==="string"&&window.REPORT_CHAT_SITE)||"report";
 const CONFIG=(()=>{const e=document.getElementById("chat-config");return e?JSON.parse(e.textContent):{}})();
 function getCookie(n){const m=document.cookie.match(new RegExp("(?:^|; )"+n+"=([^;]*)"));return m?decodeURIComponent(m[1]):null}
-/* Categories, sub-issues and urgency hold translation keys; data sent to the backend is always English. */
-const CATS={
-  pothole:{key:"c_pothole",team:"tm_highways",def:"High"},flytip:{key:"c_flytip",team:"tm_cleansing",def:"Medium"},
-  light:{key:"c_light",team:"tm_lighting",def:"Medium"},graffiti:{key:"c_graffiti",team:"tm_cleansing",def:"Low"},
-  sign:{key:"c_sign",team:"tm_highways",def:"Medium"},parks:{key:"c_parks",team:"tm_parks",def:"Medium"},
-  drain:{key:"c_drain",team:"tm_highways",def:"High"},other:{key:"c_other",team:"tm_triage",def:"Medium"}
+/* Existing translations are reused only when the configured label is unchanged. */
+const CATEGORY_TRANSLATIONS={pothole:"c_pothole",flytip:"c_flytip",light:"c_light",graffiti:"c_graffiti",
+  sign:"c_sign",parks:"c_parks",drain:"c_drain",other:"c_other"};
+const SUBISSUE_TRANSLATIONS={
+  pothole:{small:"po_small",large:"po_large",several:"po_several"},
+  flytip:{bags:"ft_bags",hazardous:"ft_haz",blocking:"ft_block"},
+  light:{out:"li_out",wires:"li_wires",leaning:"li_lean"}
 };
-const SUBS={
-  pothole:{q:"sq_pothole",opts:[{k:"po_small"},{k:"po_large",raise:"High"},{k:"po_several",raise:"High"},{k:"po_pave",raise:"High"},{k:"po_sunk"}]},
-  flytip:{q:"sq_flytip",opts:[{k:"ft_bags"},{k:"ft_furn"},{k:"ft_rubble"},{k:"ft_tyres"},{k:"ft_haz",raise:"Urgent"},{k:"ft_block",raise:"High"}]},
-  light:{q:"sq_light",opts:[{k:"li_out"},{k:"li_flick"},{k:"li_day",raise:"Low"},{k:"li_wires",raise:"Urgent"},{k:"li_lean",raise:"Urgent"},{k:"li_door",raise:"Urgent"}]},
-  graffiti:{q:"sq_graffiti",opts:[{k:"gr_wall"},{k:"gr_stop"},{k:"gr_sign",raise:"High"},{k:"gr_off",raise:"High"}]},
-  sign:{q:"sq_sign",opts:[{k:"sg_bent"},{k:"sg_missing"},{k:"sg_read"},{k:"sg_fallen",raise:"High"},{k:"sg_junction",raise:"High"}]}
-};
-const KEYWORDS={
-  pothole:[/pot ?holes?/,/hole in (the )?road/,/crater/,/road surface/,/cracked (road|tarmac)/,/sunken/],
-  flytip:[/fly.?tip/,/dump(ed|ing)/,/rubbish/,/mattress/,/sofa/,/bin bags?/,/waste/,/tyres?/,/litter/],
-  light:[/street ?lights?/,/lamp ?post/,/\blamp\b/,/light (is |has )?(out|off|broken|gone)/,/flicker/],
-  graffiti:[/graffiti/,/spray ?paint/,/tagg(ed|ing)/],
-  sign:[/\bsigns?\b/,/signpost/,/bollard/],
-  parks:[/\btrees?\b/,/branch/,/\bpark\b/,/playground/,/bench/,/grass/,/hedge/],
-  drain:[/drain/,/flood/,/gully/,/standing water/]
-};
+const CATS=Object.fromEntries((CONFIG.issueTypes||[]).map(issue=>[`issue-${issue.id}`,{
+  id:issue.id,name:issue.name,team:issue.team,def:issue.priority,
+  key:CATEGORY_TRANSLATIONS[issue.translationCode],
+  subissues:issue.subissues.map(sub=>({...sub,key:SUBISSUE_TRANSLATIONS[issue.translationCode]?.[sub.translationCode]})),
+  keywords:issue.keywords
+}]));
+CATS.other={id:null,name:"Other (needs review)",key:"c_other",team:"",def:"Medium",subissues:[],keywords:[]};
+const KEYWORDS={};
+for(const [id,cat] of Object.entries(CATS)){
+  KEYWORDS[id]=cat.keywords.flatMap(pattern=>{
+    try{return [new RegExp(pattern,"i")]}
+    catch(error){console.error("Invalid configured category keyword",error);return []}
+  });
+}
 const HAZARD=[
   {re:/injur|hurt|\bfell\b|tripped|accident/,why:"mentions someone hurt or an accident",to:"Urgent"},
   {re:/exposed (wire|cable)|live wire|sparking|electric/,why:"mentions exposed electrics",to:"Urgent"},
@@ -44,7 +43,7 @@ const HAZARD=[
   {re:/blocking|blocked (the )?(road|path|pavement)|can'?t (get|pass)|main road|junction|crossing|bus stop/,why:"blocks or affects a road, path or crossing",to:"High"}
 ];
 const ORDER=["Low","Medium","High","Urgent"];
-const SLA={Urgent:{ackH:1,resD:1},High:{ackH:4,resD:3},Medium:{ackD:1,resD:10},Low:{ackD:2,resD:20}};
+const SLA=CONFIG.slas||{};
 const URG=[{id:"Urgent",k:"u_Urgent",h:"uh_Urgent"},{id:"High",k:"u_High",h:"uh_High"},{id:"Medium",k:"u_Medium"},{id:"Low",k:"u_Low"},{id:null,k:"u_unsure"}];
 const METHODS=[["Email","m_email"],["Text message","m_text"],["Phone call","m_call"]];
 const EXISTING=[
@@ -61,6 +60,10 @@ const STAGE_OF={welcome:0,language:0,intro:0,category:0,otherText:0,awaitConfirm
 let lang="en";
 function t(k,v){let s=(CHAT_TEXT[lang]&&CHAT_TEXT[lang][k])||CHAT_TEXT.en[k]||k;if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s}
 const en=k=>CHAT_TEXT.en[k];
+function categoryLabel(id,english=false){
+  const cat=CATS[id];
+  return cat.key&&en(cat.key)===cat.name?(english?en(cat.key):t(cat.key)):cat.name;
+}
 
 const $=s=>document.querySelector(s);
 const log=$("#log"),msg=$("#msg"),err=$("#err"),photoBtn=$("#photoBtn"),fileInput=$("#fileInput"),chat=$(".chat");
@@ -80,17 +83,17 @@ function bot(html,opts={}){
   queue=queue.then(()=>new Promise(res=>{
     const tp=addRow("bot",`<div class="rc-bubble rc-typing" aria-hidden="true"><i></i><i></i><i></i></div>`);
     setTimeout(()=>{tp.remove();
-      const r=addRow("bot",`<span class="uk-text-meta">${esc(t("who"))}</span><div class="rc-bubble">${html}</div>`);
+      const r=addRow("bot",`<span class="rc-meta">${esc(t("who"))}</span><div class="rc-bubble">${html}</div>`);
       if(opts.chips){const c=document.createElement("div");c.className="rc-chips";
-        opts.chips.forEach(ch=>{const b=document.createElement("button");b.type="button";b.className="uk-button rc-chip "+(ch.cls==="primary"?"uk-button-primary":ch.cls==="quiet"?"uk-button-default rc-quiet":"uk-button-default");
-          b.innerHTML=esc(ch.label)+(ch.hint?`<span class="uk-text-meta uk-display-block">${esc(ch.hint)}</span>`:"");
+        opts.chips.forEach(ch=>{const b=document.createElement("button");b.type="button";b.className="ui-button rc-chip "+(ch.cls==="primary"?"ui-button":ch.cls==="quiet"?"ui-button--secondary rc-quiet":"ui-button--secondary");
+          b.innerHTML=esc(ch.label)+(ch.hint?`<span class="rc-meta rc-block">${esc(ch.hint)}</span>`:"");
           b.addEventListener("click",()=>{if(!ch.keep)c.classList.add("done");ch.on()});c.appendChild(b)});
         r.appendChild(c);}
       scroll();res();},reduced?0:450);
   }));
   return queue;
 }
-const p=s=>`<p>${esc(s)}</p>`, note=s=>`<p class="uk-text-meta">${esc(s)}</p>`;
+const p=s=>`<p>${esc(s)}</p>`, note=s=>`<p class="rc-meta">${esc(s)}</p>`;
 function clearChips(){log.querySelectorAll(".rc-chips").forEach(c=>c.classList.add("done"))}
 function setInput(key,{type="off",mode="text",photo=false}={}){
   const label=t(key);$("#msgLabel").textContent=label;msg.placeholder=label;msg.setAttribute("inputmode",mode);
@@ -112,30 +115,30 @@ function triage(){
   if(C.urgency){pr=C.urgency;reasons.push(`Reporter chose "${urgLabel(C.urgency,true)}"`)}
   else if(C.urgency===null){pr=cat.def;reasons.push("Reporter wasn't sure, so the usual priority for this issue was used")}
   else pr=cat.def;
-  if(ORDER.indexOf(cat.def)>ORDER.indexOf(pr)){pr=cat.def;reasons.push(`${en(cat.key)} is ${cat.def} priority by default`)}
+  if(ORDER.indexOf(cat.def)>ORDER.indexOf(pr)){pr=cat.def;reasons.push(`${categoryLabel(C.category,true)} is ${cat.def} priority by default`)}
   if(C.subRaise&&ORDER.indexOf(C.subRaise)>ORDER.indexOf(pr)){pr=C.subRaise;reasons.push(`Raised to ${pr}: "${C.subissue}"`)}
   const text=[C.otherText,C.subissue,C.description,C.landmark].join(" ").toLowerCase();
   HAZARD.forEach(h=>{if(h.re.test(text)&&ORDER.indexOf(h.to)>ORDER.indexOf(pr)){pr=h.to;reasons.push(`Raised to ${h.to}: the description ${h.why}`)}});
   const now=C.submittedAt?new Date(C.submittedAt):new Date(),s=SLA[pr];
-  const ackDue=s.ackH?new Date(now.getTime()+s.ackH*3600e3):addWorking(now,s.ackD);
-  return {category:C.category,teamKey:cat.team,priority:pr,reasons,ackDue,resolveDue:addWorking(now,s.resD)};
+  return {category:C.category,team:cat.team,priority:pr,reasons,
+    ackDue:s?new Date(now.getTime()+s.ackH*3600e3):null,resolveDue:s?addWorking(now,s.resD):null};
 }
 
 /* Is there an open job that may be the same problem? Demo mode uses sample cases;
    connected mode asks the server for open work of the same type nearby. */
 async function checkDuplicate(){
-  if(!C.outward)return null;
+  if(!C.outward||!CATS[C.category]?.id)return null;
   if(API_BASE===null){const e=EXISTING.find(x=>x.cat===C.category&&x.out===C.outward);return e?{ref:e.ref}:null}
   try{
-    const q=new URLSearchParams({category:C.category,postcode:C.postcode});
+    const q=new URLSearchParams({issue_type_id:CATS[C.category].id,postcode:C.postcode});
     const r=await fetch(API_BASE+"/api/cases/nearby/?"+q,{credentials:"same-origin"});
     if(!r.ok)return null;
     const j=await r.json();return j.match?{ref:j.match.reference}:null;
   }catch(e){return null}
 }
-/* Priority as a UIkit label: danger/warning colours come from the theme. */
-const PRIORITY_LABEL={Urgent:"uk-label-danger",High:"uk-label-warning",Medium:"",Low:"rc-label-low"};
-const priorityLabel=(pr,text)=>`<span class="uk-label ${PRIORITY_LABEL[pr]}">${esc(text)}</span>`;
+/* Priority labels use the configured semantic colours. */
+const PRIORITY_LABEL={Urgent:"ui-priority--danger",High:"ui-priority--warning",Medium:"",Low:"rc-label-low"};
+const priorityLabel=(pr,text)=>`<span class="ui-priority ${PRIORITY_LABEL[pr]}">${esc(text)}</span>`;
 const subText=()=>C.subKey?t(C.subKey):C.subissue;
 
 /* ---------- steps, in the order a customer meets them ---------- */
@@ -150,21 +153,22 @@ const steps={
     if(lang!=="en")bot(note(t("ai_trans")));
     else if(C.language&&C.language!=="English")bot(note(`This chat will continue in English. We'll try to send your updates in ${C.language}.`));
     bot(p(t("hi",{site:SITE})));
-    bot(p(t("auto"))+`<div class="uk-alert uk-alert-danger uk-margin-small-top uk-margin-remove-bottom" role="note">${esc(t("emerg"))}</div>`);
+    bot(p(t("auto"))+`<div class="ui-alert ui-alert--danger" role="note">${esc(t("emerg"))}</div>`);
     go("category");
   },
   /* 1. Problem */
   category(){
     setInput("ph_cat");
-    const opts=["pothole","flytip","light","graffiti","sign"].map(k=>({label:t(CATS[k].key),on:()=>{user(t(CATS[k].key));setCat(k,"Chosen by reporter");next("subissue")}}));
+    const opts=Object.keys(CATS).filter(k=>k!=="other").map(k=>({label:categoryLabel(k),on:()=>{user(categoryLabel(k));setCat(k,"Chosen by reporter");next("subissue")}}));
     opts.push({label:t("something_else"),cls:"quiet",on:()=>{user(t("something_else"));go("otherText")}});
     bot(p(t("q_cat")),{chips:opts});
   },
   otherText(){setInput("ph_other");bot(p(t("q_other")))},
   subissue(){
-    const sub=SUBS[C.category];if(!sub){next(C.otherText?"postcode":"description");return}
+    const sub=CATS[C.category].subissues;if(!sub.length){next(C.otherText?"postcode":"description");return}
     setInput("ph_sub");
-    bot(p(t(sub.q)),{chips:sub.opts.map(o=>({label:t(o.k),on:()=>{user(t(o.k));C.subKey=o.k;C.subissue=en(o.k);C.subRaise=o.raise||null;next("description")}}))
+    bot(p(t("q_desc")),{chips:sub.map(o=>{const key=o.key&&en(o.key)===o.label?o.key:null,label=key?t(key):o.label;
+      return {label,on:()=>{user(label);C.subKey=key;C.subissue=o.label;C.subRaise=o.raise||null;next("description")}}})
       .concat([{label:t("something_else"),cls:"quiet",on:()=>{user(t("something_else"));bot(p(t("tell_more")));setInput("ph_seen")}}])});
   },
   description(){setInput("ph_desc");bot(p(t("q_desc")),{chips:[skip("no_all","postcode")]})},
@@ -182,7 +186,7 @@ const steps={
     if(!CONFIG.map||!window.createReportMap){next("photo");return}
     setInput("ph_choose");
     const id="chat-map-"+(++mapCount),status=()=>document.getElementById(id+"-status");
-    bot(p(t("q_map"))+`<div id="${id}" class="report-map" role="group" aria-label="${esc(t("map_label"))}"></div><p class="uk-text-meta" id="${id}-status" role="status" aria-live="polite">${esc(t("map_hint"))}</p>`+note(t("map_privacy"))+note(CONFIG.map.attribution),{chips:[
+    bot(p(t("q_map"))+`<div id="${id}" class="report-map" role="group" aria-label="${esc(t("map_label"))}"></div><p class="ui-help" id="${id}-status" role="status" aria-live="polite">${esc(t("map_hint"))}</p>`+note(t("map_privacy"))+note(CONFIG.map.attribution),{chips:[
       {label:t("map_use"),cls:"primary",keep:true,on:()=>{if(C.lat===null){status().textContent=t("map_need_pin");return}
         user(t("map_use"));clearChips();next("photo")}},
       skip("skip","photo")]}).then(()=>{
@@ -206,7 +210,7 @@ const steps={
     const d=C.nearby;if(!d){next("updates");return}
     setInput("ph_choose");
     bot(p(t("dup_q",{area:C.outward,ref:d.ref})),{chips:[
-      {label:t("yes_same"),on:()=>{user(t("yes_same"));C.duplicateOf=d.ref;C.possibleDuplicate=null;bot(p(t("dup_linked")));next("updates")}},
+      {label:t("yes_same"),on:()=>{user(t("yes_same"));C.duplicateOf=d.ref;C.possibleDuplicate=null;bot(p(t("dup_check")));next("updates")}},
       {label:t("no_diff"),on:()=>{user(t("no_diff"));C.duplicateOf=null;C.possibleDuplicate=null;next("updates")}},
       {label:t("not_sure"),cls:"quiet",on:()=>{user(t("not_sure"));C.duplicateOf=null;C.possibleDuplicate=d.ref;bot(p(t("dup_check")));next("updates")}}]});
   },
@@ -229,10 +233,10 @@ const steps={
   review(){
     editing=false;setInput("ph_choose");
     const m=METHODS.find(x=>x[0]===C.contactMethod);
-    const rows=[["r_problem",t(CATS[C.category].key)+(C.otherText?` (“${C.otherText}”)`:"")],["r_what",subText()],["r_details",C.description],
+    const rows=[["r_problem",categoryLabel(C.category)+(C.otherText?` (“${C.otherText}”)`:"")],["r_what",subText()],["r_details",C.description],
       ["r_where",[C.postcode,C.landmark].filter(Boolean).join(", ")||t("not_given")],["r_map",C.lat===null?"":t("r_map_set")],["r_photo",C.photo?t("added"):t("none")],["r_urg",urgLabel(C.urgency??null)],
       ["r_upd",C.wantsUpdates?`${t(m[1])}: ${C.email||C.phone}`:t("no_updates")],["r_name",C.name],["r_lang",C.languageLabel]];
-    bot(p(t("review_intro"))+`<dl class="uk-description-list rc-summary">${rows.filter(r=>r[1]).map(([k,v])=>`<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`+note(t(C.wantsUpdates?"consent_yes":"consent_no")),
+    bot(p(t("review_intro"))+`<dl class="rc-summary">${rows.filter(r=>r[1]).map(([k,v])=>`<dt>${esc(t(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`+note(t(C.wantsUpdates?"consent_yes":"consent_no")),
       {chips:[{label:t("send_report"),cls:"primary",on:submit},{label:t("change"),cls:"quiet",on:()=>{user(t("change"));go("editMenu")}}]});
   },
   editMenu(){
@@ -245,22 +249,20 @@ const steps={
   },
   refAsk(){
     setInput("ph_choose");
-    bot(p(t("sent_to",{team:t(CATS[C.category].team)})+(C.duplicateOf?" "+t("added_case",{ref:C.duplicateOf}):""))+p(t("q_ref")),{chips:[
+    bot(p(t("n1"))+p(t("q_ref")),{chips:[
       {label:t("yes_ref"),on:()=>{user(t("yes_ref"));C.wantsReference=true;go("done")}},
       {label:t("no_thanks"),cls:"quiet",on:()=>{user(t("no_thanks"));C.wantsReference=false;go("done")}}]});
   },
   done(){
     setInput("ph_sent");
-    const tr=triage(),fmt=d=>d.toLocaleString(LOCALE[lang],{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    const tr=triage();
     const how={"Email":"n3_email","Text message":"n3_text","Phone call":"n3_call"}[C.contactMethod];
-    bot(`${C.wantsReference?p(t("ref_is"))+`<p class="uk-text-large uk-text-bold rc-ref" dir="ltr">${reference}</p>`+note(t("ref_keep")):p(t("no_problem"))}
-      <dl class="uk-description-list rc-summary">
-        <dt>${esc(t("d_priority"))}</dt><dd>${priorityLabel(tr.priority,t("p_"+tr.priority))} <span class="uk-text-meta">${esc(t("ai_pri"))}</span></dd>
-        <dt>${esc(t("d_look"))}</dt><dd><bdi>${esc(fmt(tr.ackDue))}</bdi> (${esc(t("ack_"+tr.priority))})</dd>
-        <dt>${esc(t("d_fix"))}</dt><dd>${esc(t("fix_"+tr.priority))}</dd>
+    bot(`${C.wantsReference?p(t("ref_is"))+`<p class="rc-ref" dir="ltr">${reference}</p>`+note(t("ref_keep")):p(t("no_problem"))}
+      <dl class="rc-summary">
+        <dt>${esc(t("d_priority"))}</dt><dd>${priorityLabel(tr.priority,t("p_"+tr.priority))} <span class="rc-meta">${esc(t("ai_pri"))}</span></dd>
       </dl>
-      <p class="uk-text-bold uk-margin-small-bottom">${esc(t("next_h"))}</p>
-      <ol class="uk-list uk-list-decimal uk-margin-remove-top"><li>${esc(t("n1"))}</li><li>${esc(t("n2"))}</li><li>${esc(t(C.wantsUpdates?how:"n3_none"))}</li></ol>`+(API_BASE===null?note(t("proto")):""),
+      <p class="rc-next-title">${esc(t("next_h"))}</p>
+      <ol class="rc-next-list"><li>${esc(t("n1"))}</li><li>${esc(t("n2"))}</li><li>${esc(t(C.wantsUpdates?how:"n3_none"))}</li></ol>`+(API_BASE===null?note(t("proto")):""),
       {chips:[{label:t("another"),on:()=>{log.innerHTML="";fresh();go("welcome")}}]});
   }
 };
@@ -287,7 +289,7 @@ function onText(v){
       if(m)setLang(m[1],m[2],m[0]);else setLang("en",v.slice(0,40),v.slice(0,40));}return;
     case "category":case "otherText":{
       clearChips();user(v);C.otherText=v.slice(0,300);const m=classify(v);
-      if(m){current="awaitConfirm";bot(p(t("ai_cat",{cat:t(CATS[m].key)}))+note(t("ai_sugg")),{chips:[
+      if(m){current="awaitConfirm";bot(p(t("ai_cat",{cat:categoryLabel(m)}))+note(t("ai_sugg")),{chips:[
         {label:t("yes_right"),on:()=>{user(t("yes_right"));setCat(m,"AI-suggested, confirmed by reporter");next("subissue")}},
         {label:t("no"),cls:"quiet",on:()=>{user(t("no"));setCat("other","Needs a person to categorise");bot(p(t("desk_no")));next("postcode")}}]});}
       else{setCat("other","Needs a person to categorise");bot(p(t("desk_unmatched")));next("postcode")}
@@ -366,22 +368,22 @@ async function submit(){
 function render(){
   const st=STAGE_OF[current]??0;
   const shown=Math.min(st,5);
-  $("#progress").innerHTML=`<div class="uk-flex uk-flex-between uk-text-meta"><span>${esc(t("st"+shown))}</span><span dir="ltr">${shown+1} / 6</span></div>`+
-    `<progress class="uk-progress uk-margin-small-top uk-margin-remove-bottom" value="${st>5?6:shown}" max="6" aria-label="${esc(t("st"+shown))}"></progress>`;
+  $("#progress").innerHTML=`<div class="rc-progress-label rc-meta"><span>${esc(t("st"+shown))}</span><span dir="ltr">${shown+1} / 6</span></div>`+
+    `<progress class="ui-progress" value="${st>5?6:shown}" max="6" aria-label="${esc(t("st"+shown))}"></progress>`;
   if(!$("#casePanel"))return; /* staff panel is only on the page for signed-in staff */
-  const rows=[["Language",C.language],["Problem",C.category?en(CATS[C.category].key):""],["What exactly",C.subissue],["Details",C.description||C.otherText],
+  const rows=[["Language",C.language],["Problem",C.category?categoryLabel(C.category,true):""],["What exactly",C.subissue],["Details",C.description||C.otherText],
     ["Postcode",C.postcode||(C.postcodeKnown===false?"Not known":"")],["Location",C.landmark],["Photo",C.photo?C.photoName||"Added":""],
     ["Urgency",C.urgency===undefined?"":urgLabel(C.urgency,true)],["Updates",C.wantsUpdates===null?"":C.wantsUpdates?C.contactMethod:"No"],
     ["Contact",C.email||C.phone],["Name",C.name],["Reference",C.wantsReference===null?"":C.wantsReference?"Wanted":"Not wanted"]];
-  $("#fields").innerHTML=rows.map(([k,v])=>`<li class="rc-field"><span class="${v?"uk-text-success":"uk-text-muted"}" uk-icon="icon: ${v?"check":"minus"}; ratio: 0.8" aria-hidden="true"></span><span class="uk-text-muted">${k}</span><span>${v?esc(v):"<span class='uk-text-muted'>—</span>"}</span></li>`).join("");
+  $("#fields").innerHTML=rows.map(([k,v])=>`<li class="rc-field"><span class="${v?"rc-field-complete":"rc-muted"}" aria-hidden="true">${v?"✓":"–"}</span><span class="rc-muted">${k}</span><span>${v?esc(v):"<span class='rc-muted'>—</span>"}</span></li>`).join("");
   const tr=triage(),tri=$("#triage");
-  if(!tr){tri.innerHTML=`<p class="uk-text-meta uk-margin-remove">Triage appears once the problem is known.</p>`}
+  if(!tr){tri.innerHTML=`<p class="rc-meta ">Triage appears once the problem is known.</p>`}
   else tri.innerHTML=`
-    <div><div class="rc-lbl">Category</div>${esc(en(CATS[C.category].key))}${C.subissue?` · ${esc(C.subissue)}`:""}<div class="uk-text-meta">${esc(C.categorySource||"")}</div></div>
-    <div><div class="rc-lbl">Route to</div>${esc(en(tr.teamKey))}${C.duplicateOf?" (linked case)":""}</div>
-    <div><div class="rc-lbl">Suggested priority</div>${priorityLabel(tr.priority,tr.priority)}${tr.reasons.length?`<ul class="uk-list uk-list-bullet uk-list-collapse uk-margin-small-top">${tr.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>
-    <div><div class="rc-lbl">SLA</div>Acknowledge ${en("ack_"+tr.priority)}, resolve within ${en("fix_"+tr.priority)}</div>
-    ${C.duplicateOf||C.possibleDuplicate?`<div><div class="rc-lbl">Duplicate check</div>${C.duplicateOf?"Linked to "+C.duplicateOf:"Possible duplicate of "+C.possibleDuplicate+", to check"}</div>`:""}
+    <div><div class="rc-lbl">Category</div>${esc(categoryLabel(C.category,true))}${C.subissue?` · ${esc(C.subissue)}`:""}<div class="rc-meta">${esc(C.categorySource||"")}</div></div>
+    <div><div class="rc-lbl">Suggested team</div>${esc(tr.team||"To be reviewed")}</div>
+    <div><div class="rc-lbl">Suggested priority</div>${priorityLabel(tr.priority,tr.priority)}${tr.reasons.length?`<ul class="rc-reasons">${tr.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>
+    ${SLA[tr.priority]?`<div><div class="rc-lbl">Configured targets</div>Acknowledge within ${SLA[tr.priority].ackH} hours; resolve within ${SLA[tr.priority].resD} working days.</div>`:""}
+    ${C.duplicateOf||C.possibleDuplicate?`<div><div class="rc-lbl">Duplicate check</div>Possible duplicate of ${esc(C.duplicateOf||C.possibleDuplicate)}, to check</div>`:""}
     ${C.postcodeKnown===false?`<div><div class="rc-lbl">Location check</div>No postcode. Officer to confirm the location from the description.</div>`:""}
     ${lang!=="en"?`<div><div class="rc-lbl">Language</div>Reporter used the ${esc(C.language)} chat. Any typed text may need translating.</div>`:""}
     <div><div class="rc-lbl">Status</div>${reference?"Submitted, awaiting triage officer approval":"Draft"}</div>`;
@@ -389,14 +391,15 @@ function render(){
 }
 function payload(tr){
   return {case:{reference:reference,reference_shown_to_reporter:C.wantsReference,
-    title:C.category?en(CATS[C.category].key)+(C.subissue?" – "+C.subissue:""):null,
+    title:C.category?categoryLabel(C.category,true)+(C.subissue?" – "+C.subissue:""):null,
     category:tr?tr.category:null,sub_issue:C.subissue||null,category_source:C.categorySource,
+    issue_type_id:C.category?CATS[C.category].id:null,other_selected:C.category==="other",
     description:[C.otherText,C.description].filter(Boolean).join(" | ")||null,chat_language:C.language||null,
     priority_suggested:tr?tr.priority:null,priority_reasons:tr?tr.reasons:[],priority_confirmed:null,reporter_urgency:C.urgency??null,
     status:reference?"New – awaiting triage":"Draft",
     location:{postcode:C.postcode||null,postcode_known:C.postcodeKnown,description:C.landmark||null,latitude:C.lat,longitude:C.lng},
-    date_reported:C.submittedAt,assigned_team:tr?en(tr.teamKey):null,assigned_officer:null,
-    sla_ack_due:tr&&reference?tr.ackDue.toISOString():null,sla_resolve_due:tr&&reference?tr.resolveDue.toISOString():null,
+    date_reported:C.submittedAt,assigned_team:tr?tr.team:null,assigned_officer:null,
+    sla_ack_due:tr&&reference&&tr.ackDue?tr.ackDue.toISOString():null,sla_resolve_due:tr&&reference&&tr.resolveDue?tr.resolveDue.toISOString():null,
     duplicate_of:C.duplicateOf,possible_duplicate_of:C.possibleDuplicate,has_photo:!!C.photo,photo_draft:C.photoDraft,photo_slots:C.photoSlot?[C.photoSlot]:[],
     ai_used:(C.categorySource&&C.categorySource.startsWith("AI")?["category_suggestion"]:[]).concat(["priority_suggestion"],lang!=="en"?["chat_translation"]:[])},
     reporter:C.wantsUpdates?{name:C.name||null,email:C.email||null,phone:C.phone||null,preferred_contact:C.contactMethod,preferred_language:C.language||null,wants_updates:true}

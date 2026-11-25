@@ -11,6 +11,8 @@ from employees.organisation_models import Department, Employee, IssueType
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
 from intake.models import (
     ContactMethod,
+    IssueCategory,
+    IssueSubcategory,
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
@@ -215,3 +217,35 @@ def test_work_item_transition_fields_are_required_for_cancellation() -> None:
         item.full_clean()
 
     assert "cancellation_reason" in error.value.message_dict
+
+
+def test_issue_category_seed_and_configuration() -> None:
+    """Seed public categories and allow active taxonomy configuration."""
+    category = IssueCategory.objects.get(code="pothole")
+
+    assert category.issue_type_code == "POTHOLE"
+    assert category.active
+    assert category.subcategories.filter(code="large").exists()
+
+    category.label = "Road surface"
+    category.active = False
+    category.save(update_fields=("label", "active"))
+
+    category.refresh_from_db()
+    assert category.label == "Road surface"
+    assert not category.active
+
+
+def test_chat_metadata_rejects_unsupported_priorities() -> None:
+    """Administrators cannot save priority codes the chat cannot interpret."""
+    category = IssueCategory.objects.get(code="pothole")
+    category.default_priority_code = "UNKNOWN"
+    with pytest.raises(ValidationError) as error:
+        category.full_clean()
+    assert "default_priority_code" in error.value.message_dict
+
+    subcategory = IssueSubcategory.objects.get(category=category, code="large")
+    subcategory.raised_priority_code = "UNKNOWN"
+    with pytest.raises(ValidationError) as error:
+        subcategory.full_clean()
+    assert "raised_priority_code" in error.value.message_dict

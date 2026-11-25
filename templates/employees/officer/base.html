@@ -18,6 +18,7 @@
     >
     <link href="{% static 'css/fieldops-mobile.css' %}" rel="stylesheet">
     <link href="{% static 'css/fieldops-mobile-extras.css' %}" rel="stylesheet">
+    {% include "_theme_variables.html" %}
   </head>
   <body data-view="{% block view %}{{ tab }}{% endblock view %}">
     <header id="bar">

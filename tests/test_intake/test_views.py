@@ -39,14 +39,15 @@ def test_home_page_extends_base_template(client: Client) -> None:
     assert any(template.name == "base.html" for template in response.templates)
 
 
-def test_base_template_loads_ui_kit_before_runtime_theme(client: Client) -> None:
-    """Test the base template loads UIkit before the theme overrides."""
+def test_base_template_loads_component_styles(client: Client) -> None:
+    """Load fonts, tokens, layout, and components without UIkit."""
     response = client.get(reverse("intake:form_intake"))
     content = response.content.decode()
 
-    assert "uikit/uikit.min" in content
-    assert "css/theme" in content
-    assert content.index("uikit/uikit.min") < content.index("css/theme")
+    assert "uikit/uikit.min" not in content
+    assert "css/fonts" in content
+    assert "css/layout" in content
+    assert "css/components" in content
 
 
 def test_home_page_resolves_to_report_chat_view() -> None:

@@ -13,6 +13,7 @@ from django.db.models.base import ModelBase
 
 PUBLIC_REFERENCE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 PUBLIC_REFERENCE_LENGTH = 8
+CHAT_PRIORITY_CODES = frozenset({"CRITICAL", "HIGH", "NORMAL", "LOW"})
 
 
 def new_public_reference() -> str:
@@ -28,6 +29,8 @@ class ContactMethod(models.Model):
 
     code = models.CharField(max_length=40, unique=True, editable=False)
     label = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ("code",)
@@ -35,6 +38,138 @@ class ContactMethod(models.Model):
     def __str__(self) -> str:
         """Return the configurable label."""
         return self.label
+
+
+class IssueCategory(models.Model):
+    """Optional chat metadata for a shared, routable issue type."""
+
+    code = models.CharField(max_length=40, unique=True)
+    issue_type = models.OneToOneField(
+        "employees.IssueType",
+        on_delete=models.PROTECT,
+        related_name="chat_category",
+        null=True,
+        blank=True,
+        limit_choices_to={"kind": "ISSUE"},
+    )
+    label = models.CharField(max_length=150)
+    department_name = models.CharField(max_length=150)
+    issue_type_code = models.CharField(max_length=40)
+    issue_type_name = models.CharField(max_length=150)
+    default_priority_code = models.CharField(max_length=40, blank=True)
+    default_urgency_code = models.CharField(max_length=40, blank=True)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("sort_order", "code")
+
+    def __str__(self) -> str:
+        """Return the public category label."""
+        return self.label
+
+    def clean(self) -> None:
+        """Require active chat metadata to identify a routable issue type."""
+        super().clean()
+        errors: dict[str, str] = {}
+        if self.active and self.issue_type_id is None:
+            errors["issue_type"] = "Choose the shared issue type."
+        issue_type = self.issue_type if self.issue_type_id else None
+        if issue_type is not None and issue_type.kind != issue_type.Kind.ISSUE:
+            errors["issue_type"] = "Choose a routable issue type."
+        if (
+            self.default_priority_code
+            and self.default_priority_code not in CHAT_PRIORITY_CODES
+        ):
+            errors["default_priority_code"] = (
+                "Use CRITICAL, HIGH, NORMAL or LOW, or leave blank for NORMAL."
+            )
+        if errors:
+            raise ValidationError(errors)
+
+
+class IssueSubcategory(models.Model):
+    """A category-specific sub-issue option."""
+
+    category = models.ForeignKey(
+        IssueCategory,
+        on_delete=models.CASCADE,
+        related_name="subcategories",
+    )
+    code = models.CharField(max_length=40)
+    label = models.CharField(max_length=150)
+    raised_priority_code = models.CharField(max_length=40, blank=True)
+    active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("sort_order", "code")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("category", "code"),
+                name="unique_issue_subcategory_per_category",
+            )
+        ]
+
+    def __str__(self) -> str:
+        """Return the subcategory label."""
+        return self.label
+
+    def clean(self) -> None:
+        """Reject priority codes that cannot be used by the chat."""
+        super().clean()
+        if (
+            self.raised_priority_code
+            and self.raised_priority_code not in CHAT_PRIORITY_CODES
+        ):
+            raise ValidationError(
+                {
+                    "raised_priority_code": (
+                        "Use CRITICAL, HIGH, NORMAL or LOW, or leave blank."
+                    )
+                }
+            )
+
+
+class IssueCategoryKeyword(models.Model):
+    """A rules-based text hint for suggesting an issue category."""
+
+    category = models.ForeignKey(
+        IssueCategory,
+        on_delete=models.CASCADE,
+        related_name="keywords",
+    )
+    pattern = models.CharField(max_length=300)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("category__sort_order", "pk")
+
+    def __str__(self) -> str:
+        """Return the keyword rule."""
+        return f"{self.category.code}: {self.pattern}"
+
+
+class SlaPolicy(models.Model):
+    """Acknowledgement and resolution targets for a priority level."""
+
+    priority_code = models.CharField(max_length=40)
+    acknowledgement_hours = models.PositiveIntegerField(default=24)
+    resolution_working_days = models.PositiveIntegerField(default=20)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("priority_code",),
+                name="unique_sla_priority",
+            )
+        ]
+        ordering = ("priority_code",)
+
+    def __str__(self) -> str:
+        """Describe the priority SLA."""
+        return f"{self.priority_code} SLA"
 
 
 class Reporter(models.Model):

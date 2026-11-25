@@ -14,12 +14,14 @@
   function drawMap(el) {
     const data = JSON.parse($('#map-points').textContent);
     if (typeof L === 'undefined') { el.innerHTML = '<p class="pad muted">Map unavailable — use the list.</p>'; return; }
+    const theme = getComputedStyle(document.documentElement);
+    const token = name => theme.getPropertyValue(name).trim();
     const single = el.dataset.single === '1';
     const m = L.map(el, { zoomControl: true });
     L.tileLayer(data.tiles, { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(m);
     const pts = [];
     if (!single) {
-      L.circleMarker([data.depot.lat, data.depot.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#111', fillOpacity: 1 })
+      L.circleMarker([data.depot.lat, data.depot.lng], { radius: 7, color: token('--theme-surface'), weight: 2, fillColor: token('--theme-emphasis-text'), fillOpacity: 1 })
         .bindPopup('Depot · ' + esc(data.depot.name)).addTo(m);
       pts.push([data.depot.lat, data.depot.lng]);
     }
@@ -29,7 +31,7 @@
         .bindPopup(`<b>${esc(s.title)}</b><br>${esc(s.address)}<br><a href="${esc(s.url)}">Open job</a>`).addTo(m);
     });
     if (!single && data.stops.length) {
-      L.polyline(pts.concat([[data.depot.lat, data.depot.lng]]), { color: '#0f6b63', weight: 3, dashArray: '6 6' }).addTo(m);
+      L.polyline(pts.concat([[data.depot.lat, data.depot.lng]]), { color: token('--theme-primary'), weight: 3, dashArray: '6 6' }).addTo(m);
     }
     if (pts.length > 1) m.fitBounds(pts, { padding: [30, 30] }); else if (pts.length) m.setView(pts[0], 15);
   }

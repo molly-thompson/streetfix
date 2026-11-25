@@ -18,7 +18,6 @@ from intake.models import ReportPhotoSlot
 from . import field_work, geo, report_summary
 from .forms import BeforePhotoForm, CommentForm
 from .organisation_models import Employee
-from .templatetags.fieldops import PRIORITY_COLOURS
 from .visit_report import (
     CONFIRMATIONS,
     FURTHER_WORK_OUTCOMES,
@@ -72,7 +71,7 @@ def _with_visit(item: WorkItem, employee: Employee) -> WorkItem:
     item.is_case_officer = field_work.is_case_officer(item, employee)  # type: ignore[attr-defined]
     item.next_step = (  # type: ignore[attr-defined]
         "in_progress"
-        if item.status.code == "IN_PROGRESS"
+        if item.status.is_officer_active and not item.status.is_assigned
         else "arrived"
         if arrived
         else "assigned"
@@ -106,7 +105,7 @@ def _map_points(jobs: list[WorkItem]) -> dict[str, Any]:
                 "lng": float(job.longitude),
                 "title": job.issue_type.name,
                 "address": job.address,  # type: ignore[attr-defined]
-                "colour": PRIORITY_COLOURS.get(job.priority.code, "#64748b"),
+                "colour": job.priority.color,
                 "url": reverse("employees:my_job", args=[job.pk]),
             }
             for job in jobs
@@ -247,7 +246,7 @@ class BeforePhotoView(OfficerMixin, View):
                 "job": _with_visit(report.work_item, self.employee()),
                 "photos": report.photos.filter(tag=WorkItemPhoto.Tag.BEFORE),
                 "form": form or BeforePhotoForm(),
-                "min_reason": field_work.NO_PHOTO_REASON_MIN_LENGTH,
+                "min_reason": field_work.no_photo_reason_min_length(),
             },
         )
 
@@ -295,7 +294,7 @@ class VisitReportView(OfficerMixin, View):
         """Return the draft report for work that has started."""
         item = self.work_item(pk)
         report = field_work.draft_report(item, self.employee())
-        if item.status.code != "IN_PROGRESS" or report is None:
+        if not item.status.is_officer_active or report is None:
             raise PermissionDenied("Start the work before reporting on it.")
         return report
 

@@ -18,12 +18,19 @@ from django.urls import reverse
 from django.utils import timezone
 from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks, Settings
 
-from employees.organisation_models import IssueType
+from employees.organisation_models import Department, IssueType
 from employees.work_models import WorkItem, WorkItemStatus
 from intake.chat import locate
-from intake.models import Reporter, ReportSubmission, TriageAttempt
+from intake.models import (
+    IssueCategory,
+    Reporter,
+    ReportSubmission,
+    SlaPolicy,
+    TriageAttempt,
+)
 from intake.services.rate_limit import REPORT_SUBMISSION
 from intake.services.reference import display_reference, submission_for_reference
+from site_settings.models import SiteConfiguration
 
 pytestmark = pytest.mark.django_db
 
@@ -85,25 +92,34 @@ def test_report_chat_page_is_public(client: Client) -> None:
     assert response.status_code == 200
     assert "js/report-chat." in response.content.decode()
     assert "csrftoken" in response.cookies
+    assert reverse("intake:submit_report") not in response.content.decode()
+
+
+@override_settings(INTAKE_PUBLIC_REPORTING_ENABLED=True)
+def test_report_chat_links_to_enabled_form(client: Client) -> None:
+    """Residents can choose the form when public reporting is enabled."""
+    content = client.get(reverse("intake:form_intake")).content.decode()
+
+    assert reverse("intake:submit_report") in content
 
 
 def test_report_chat_uses_site_layout_and_theme(client: Client) -> None:
-    """The chat extends the site template, so it gets UIkit and the theme."""
+    """The chat extends the site template and its semantic styles."""
     response = client.get(reverse("intake:form_intake"))
     content = response.content.decode()
 
     assert any(template.name == "base.html" for template in response.templates)
-    assert "uikit/uikit.min" in content
-    assert "css/theme" in content
-    assert content.index("css/theme") < content.index("css/report-chat")
+    assert "uikit/uikit.min" not in content
+    assert "css/components" in content
+    assert content.index("css/components") < content.index("css/report-chat")
 
 
 def test_report_chat_shows_the_site_navbar(client: Client) -> None:
     """The report chat keeps the site brand and the shared navigation links."""
     content = client.get(reverse("intake:form_intake")).content.decode()
 
-    assert "uk-logo" in content
-    assert '<a href="/employees/">Employees</a>' in content
+    assert "ui-brand" in content
+    assert 'href="/employees/">Employees</a>' in content
     assert '<a href="/analytics/">Analytics</a>' not in content
 
 
@@ -115,6 +131,134 @@ def chat_config(client: Client) -> dict[str, Any]:
     )
     assert match
     return json.loads(match.group(1))  # type: ignore[no-any-return]
+
+
+def test_chat_offers_the_same_configured_issue_types_as_the_form(
+    client: Client,
+) -> None:
+    """Chat options reflect added, renamed and inactive shared issue types."""
+    department = Department.objects.create(name="Configured team")
+    issue = IssueType.objects.create(
+        name="Damaged bench", code="BENCH", department=department, sort_order=0
+    )
+    IssueType.objects.filter(code="POTHOLE").update(active=False)
+    options = chat_config(client)["issueTypes"]
+    assert any(
+        option["id"] == issue.pk and option["name"] == "Damaged bench"
+        for option in options
+    )
+    assert not any(option["name"] == "Pothole" for option in options)
+
+
+def test_chat_uses_configured_metadata_and_slas(client: Client) -> None:
+    """Chat suggestions use the database settings linked to the issue type."""
+    category = IssueCategory.objects.get(code="pothole")
+    category.default_priority_code = "HIGH"
+    category.save(update_fields=["default_priority_code"])
+    SlaPolicy.objects.filter(priority_code="HIGH").update(
+        acknowledgement_hours=7, resolution_working_days=9
+    )
+    config = chat_config(client)
+    option = next(
+        option
+        for option in config["issueTypes"]
+        if option["id"] == category.issue_type_id
+    )
+    assert option["priority"] == "High"
+    assert option["keywords"]
+    assert option["subissues"]
+    assert config["slas"]["High"] == {"ackH": 7, "resD": 9}
+    assert config["slas"]["Urgent"] == {"ackH": 1, "resD": 1}
+
+
+def test_chat_logs_invalid_existing_priority_metadata(
+    client: Client, caplog: Any
+) -> None:
+    """Malformed historical metadata is not silently treated as valid."""
+    category = IssueCategory.objects.get(code="pothole")
+    category.default_priority_code = "UNKNOWN"
+    category.save(update_fields=["default_priority_code"])
+    category.subcategories.filter(code="large").update(raised_priority_code="UNKNOWN")
+    chat_config(client)
+    assert "unsupported default priority" in caplog.text
+    assert "unsupported raised priority" in caplog.text
+
+
+def test_admin_highlights_unlinked_active_chat_categories(client: Client) -> None:
+    """Unlinked legacy metadata is visible for administrative reconciliation."""
+    IssueCategory.objects.filter(code="pothole").update(issue_type=None)
+    user = get_user_model().objects.create_superuser(
+        username="admin",
+        email="admin@example.com",
+        password="test-password",  # noqa: S106
+    )
+    client.force_login(user)
+    response = client.get(reverse("admin:intake_issuecategory_changelist"))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "1 active chat category needs a shared issue type" in content
+    assert "issue_type__isempty" in content
+
+
+def test_chat_submits_a_new_configured_issue_for_review(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """A newly configured issue is saved through the common submission flow."""
+    department = Department.objects.create(name="Local amenities")
+    issue = IssueType.objects.create(name="Bench", code="BENCH", department=department)
+    response = post_report(chat_report(case={"issue_type_id": issue.pk}))
+    assert response.status_code == 201
+    submission = ReportSubmission.objects.get()
+    assert submission.reported_issue_type_id == issue.pk
+    assert submission.work_item_id is None
+
+
+def test_chat_can_submit_an_uncategorized_issue(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Unmatched reports are preserved as Other for a reviewer."""
+    response = post_report(
+        chat_report(case={"issue_type_id": None, "other_selected": True})
+    )
+    assert response.status_code == 201
+    submission = ReportSubmission.objects.get()
+    assert submission.reported_issue_type_id is None
+    assert submission.other_selected
+    assert submission.work_item_id is None
+
+
+def test_chat_rejects_an_inactive_explicit_issue(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """Stale chat selections must not silently become another issue type."""
+    issue = IssueType.objects.get(code="POTHOLE")
+    issue.active = False
+    issue.save(update_fields=["active"])
+    response = post_report(chat_report(case={"issue_type_id": issue.pk}))
+    assert response.status_code == 400
+    assert not ReportSubmission.objects.exists()
+
+
+@pytest.mark.parametrize("issue_id", [True, 1.5, "1.5", {}, 0, 9223372036854775808])
+def test_chat_rejects_invalid_explicit_issue_ids(
+    post_report: Callable[[dict[str, Any]], Any], issue_id: Any
+) -> None:
+    """Invalid identifiers never get coerced into a different issue."""
+    response = post_report(chat_report(case={"issue_type_id": issue_id}))
+    assert response.status_code == 400
+    assert not ReportSubmission.objects.exists()
+
+
+def test_chat_rejects_issue_and_other_together(
+    post_report: Callable[[dict[str, Any]], Any],
+) -> None:
+    """A routable issue and an uncategorized report cannot both be selected."""
+    issue = IssueType.objects.get(code="POTHOLE")
+    response = post_report(
+        chat_report(case={"issue_type_id": issue.pk, "other_selected": True})
+    )
+    assert response.status_code == 400
+    assert not ReportSubmission.objects.exists()
 
 
 def test_chat_offers_neither_map_nor_photos_by_default(client: Client) -> None:
@@ -674,6 +818,10 @@ def test_nearby_finds_open_job_of_same_type(
 ) -> None:
     """An open pothole about 100 m away is offered as a possible duplicate."""
     existing = make_work_item()  # pothole at 51.5, -0.12
+    category = IssueCategory.objects.get(code="pothole")
+    assert category.issue_type is not None
+    existing.issue_type = category.issue_type
+    existing.save(update_fields=["issue_type"])
     reference = reference_of(existing)
 
     with mock.patch("intake.chat.locate", return_value=NEAR_POTHOLE):
@@ -681,6 +829,54 @@ def test_nearby_finds_open_job_of_same_type(
 
     assert result["match"]["reference"] == reference
     assert result["match"]["days_ago"] == 0
+
+
+def test_nearby_uses_configured_radius_beyond_old_bounding_box(
+    client: Client, make_work_item: Callable[..., WorkItem]
+) -> None:
+    """A wider configured radius can find work more than 0.02 degrees away."""
+    existing = make_work_item()
+    issue = IssueCategory.objects.get(code="pothole").issue_type
+    assert issue is not None
+    existing.issue_type = issue
+    existing.save(update_fields=["issue_type"])
+    reference = reference_of(existing)
+    SiteConfiguration.objects.update_or_create(
+        pk=1, defaults={"duplicate_radius_km": Decimal("4.000")}
+    )
+    with mock.patch(
+        "intake.chat.locate", return_value=(Decimal("51.530000"), Decimal("-0.120000"))
+    ):
+        assert nearby(client)["match"]["reference"] == reference
+
+
+def test_nearby_does_not_conflate_issue_types_with_same_code(
+    client: Client, make_work_item: Callable[..., WorkItem]
+) -> None:
+    """Different issue types can share a code but must not share matches."""
+    existing = make_work_item()
+    reference_of(existing)
+    issue = IssueCategory.objects.get(code="pothole").issue_type
+    assert issue is not None
+    assert issue.pk is not None
+    assert existing.issue_type.code == issue.code
+    assert existing.issue_type_id != issue.pk
+    with mock.patch("intake.chat.locate", return_value=NEAR_POTHOLE):
+        response = client.get(
+            reverse("intake:nearby_report"),
+            {"issue_type_id": str(issue.pk), "postcode": "SW1A 1AA"},
+        )
+    assert response.json() == {"match": None}
+
+
+@pytest.mark.parametrize("issue_id", ["0", "1.5", "9223372036854775808", "9" * 100])
+def test_nearby_rejects_invalid_issue_ids(client: Client, issue_id: str) -> None:
+    """Malformed or overflowing IDs return a client error, not a server error."""
+    response = client.get(
+        reverse("intake:nearby_report"),
+        {"issue_type_id": issue_id, "postcode": "SW1A 1AA"},
+    )
+    assert response.status_code == 400
 
 
 def test_nearby_ignores_jobs_with_no_public_report(

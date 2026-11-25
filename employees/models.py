@@ -9,8 +9,11 @@ add/change/delete/view permissions exist.
 from .organisation_models import Department, Employee, IssueType
 from .work_models import (
     CancellationReason,
+    PhotoTag,
     Priority,
     Urgency,
+    VisitOutcome,
+    VisitReportOption,
     WorkAssignment,
     WorkItem,
     WorkItemComment,
@@ -18,6 +21,7 @@ from .work_models import (
     WorkItemReport,
     WorkItemStatus,
     WorkItemStatusHistory,
+    WorkStatusTransition,
 )
 
 __all__ = [
@@ -34,4 +38,8 @@ __all__ = [
     "WorkItemReport",
     "WorkItemStatus",
     "WorkItemStatusHistory",
+    "WorkStatusTransition",
+    "PhotoTag",
+    "VisitOutcome",
+    "VisitReportOption",
 ]

@@ -8,28 +8,8 @@ from employees.work_models import Priority, WorkItem
 
 register = template.Library()
 
-PRIORITY_COLOURS = {
-    "CRITICAL": "#d92d20",
-    "HIGH": "#c27c00",
-    "NORMAL": "#2563eb",
-    "LOW": "#64748b",
-}
 
 # Status codes mapped onto the stylesheet's status colours.
-STATUS_STYLES = {
-    "SUBMITTED": "triage",
-    "TRIAGED": "ready",
-    "ASSIGNED": "assigned",
-    "IN_PROGRESS": "in_progress",
-    "AWAITING_INFORMATION": "requires_attention",
-    "AWAITING_PARTS": "requires_attention",
-    "ON_HOLD": "requires_attention",
-    "RESOLVED": "completed",
-    "CLOSED": "completed",
-    "CANCELLED": "cancelled",
-}
-
-
 @register.simple_tag
 def priority(option: Priority | None) -> SafeString | str:
     """Render a priority as a coloured chip."""
@@ -37,7 +17,7 @@ def priority(option: Priority | None) -> SafeString | str:
         return ""
     return format_html(
         '<span class="priority" style="--c:{}">{}</span>',
-        PRIORITY_COLOURS.get(option.code, "#64748b"),
+        option.color,
         option.label,
     )
 
@@ -47,7 +27,7 @@ def status(work_item: WorkItem) -> SafeString:
     """Render a work item's status as a coloured chip."""
     return format_html(
         '<span class="status s-{}">{}</span>',
-        STATUS_STYLES.get(work_item.status.code, ""),
+        work_item.status.style_key,
         work_item.status.label,
     )
 

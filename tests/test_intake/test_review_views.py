@@ -10,7 +10,7 @@ from django.urls import reverse
 
 from employees.organisation_models import Employee
 from employees.work_models import Priority, Urgency, WorkItem, WorkItemStatus
-from intake.models import ReportSubmission
+from intake.models import ReportSubmission, TriageAttempt
 
 pytestmark = pytest.mark.django_db
 
@@ -101,6 +101,38 @@ def test_review_detail_is_private_and_contains_evidence(
     submission.triage_state = "OUT_OF_SCOPE"
     submission.save(update_fields=("triage_state",))
     assert client.get(url).status_code == 404
+
+
+@pytest.mark.parametrize("confirmed", [True, False])
+def test_review_detail_shows_reporter_duplicate_claim(
+    client: Client, make_employee: Callable[..., Employee], confirmed: bool
+) -> None:
+    """A reporter's claim remains visible and explicitly requires review."""
+    submission = ReportSubmission.objects.create(
+        description="A report", updates_requested=False, triage_state="NEEDS_REVIEW"
+    )
+    TriageAttempt.objects.create(
+        submission=submission,
+        stage=TriageAttempt.Stage.AI,
+        evidence={
+            "reporter_duplicate_claim": {
+                "reference": "ABCD-2345",
+                "confirmed_by_reporter": confirmed,
+            }
+        },
+    )
+    reviewer = make_employee()
+    reviewer.user.user_permissions.add(
+        Permission.objects.get(codename="review_reportsubmission")
+    )
+    client.force_login(reviewer.user)
+    content = client.get(
+        reverse("intake:review_detail", args=[submission.pk])
+    ).content.decode()
+    assert "ABCD-2345" in content
+    expected = "is the same problem" if confirmed else "may be the same problem"
+    assert expected in content
+    assert "A reviewer must check this." in content
 
 
 def test_authorized_reviewer_can_recover_stalled_triage(

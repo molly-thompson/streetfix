@@ -102,9 +102,10 @@ FIELD_DEPOT = {
 }
 # Look up street addresses for job locations with OpenStreetMap's Nominatim.
 REVERSE_GEOCODING = True
-GEOCODER_USER_AGENT = "StreetFix field app"
+GEOCODER_USER_AGENT = os.environ.get("GEOCODER_USER_AGENT", "reporting field app")
 # Store officers' site photos on Cloudinary when it is configured.
 OFFICER_PHOTOS_ON_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
+OFFICER_PHOTO_FOLDER = os.environ.get("OFFICER_PHOTO_FOLDER", "work-photos")
 
 # Public report submission stays disabled until deployment safeguards are ready.
 INTAKE_PUBLIC_REPORTING_ENABLED = os.environ.get(
