@@ -1,5 +1,11 @@
 # AI-Assisted Triage Decision-Support Engine
 
+> This directory contains the supplied engine and offline tests, not the
+> standalone React test bench described below. For the integrated deployment,
+> use the authenticated `triage_engine.secure_api:app` entry point and the
+> instructions in [the triage lifecycle](../docs/triage-policy-lifecycle.md).
+> The demonstration profiles are not approved operational policies.
+
 An independent, configurable **Python REST triage service** (`FastAPI` + `Pydantic v2`) with a minimal React evaluation test bench. It transforms unstructured public-realm and facilities issue reports into transparent, evidence-backed triage recommendations while enforcing non-overridable deterministic safety safeguards and mandatory human-oversight gates.
 
 ---
