@@ -1,5 +1,6 @@
 """Models for site-wide configuration."""
 
+from decimal import Decimal
 from typing import Any
 
 from cloudinary.models import CloudinaryField
@@ -93,6 +94,36 @@ class SiteConfiguration(models.Model):
         default="1.30",
     )
     on_site_minutes = models.PositiveIntegerField(default=45)
+    public_tracking_enabled = models.BooleanField(
+        default=True,
+        help_text="Let reporters follow the reports they submitted from this browser.",
+    )
+    public_tracking_max_reports = models.PositiveIntegerField(
+        default=20,
+        validators=[MinValueValidator(1)],
+        help_text="Most reports one browser can follow at a time.",
+    )
+    public_search_enabled = models.BooleanField(
+        default=True,
+        help_text="Let the public search open issues in plain language or on a map.",
+    )
+    public_search_radius_km = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        default="2.000",
+        validators=[MinValueValidator(Decimal("0.001"))],
+        help_text="How far from a place the search looks when no distance is given.",
+    )
+    public_search_max_results = models.PositiveIntegerField(
+        default=50,
+        validators=[MinValueValidator(1), MaxValueValidator(500)],
+        help_text="Most open issues returned by one search.",
+    )
+    public_search_window_days = models.PositiveIntegerField(
+        default=365,
+        validators=[MinValueValidator(1)],
+        help_text="Open issues older than this are left out of public search.",
+    )
     max_photo_bytes = models.PositiveIntegerField(default=5 * 1024 * 1024)
     no_photo_reason_min_length = models.PositiveIntegerField(default=15)
     postcode_cache_seconds = models.PositiveIntegerField(default=60 * 60 * 24)

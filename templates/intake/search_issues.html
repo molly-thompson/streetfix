@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}Open issues · {{ site_name }}{% endblock title %}
+
+{% block extra_head %}
+  {% if map_config %}
+    <link href="{% static 'vendor/leaflet/leaflet.css' %}" rel="stylesheet">
+    <link href="{% static 'css/intake.css' %}" rel="stylesheet">
+  {% endif %}
+{% endblock extra_head %}
+
+{% block content %}
+  <h1>Open issues</h1>
+  <p>Search problems that have been reported and are not yet resolved. Try “potholes near B1 1AA” or “broken streetlight within 1 mile last week”.</p>
+
+  <form id="issue-search-form" class="ui-form ui-stack" role="search">
+    <div class="ui-field">
+      <label class="ui-label" for="issue-query">What are you looking for?</label>
+      <input
+        id="issue-query"
+        class="ui-input"
+        autocomplete="off"
+        maxlength="300"
+        name="q"
+        type="search"
+      >
+    </div>
+    <div class="ui-cluster">
+      <button class="ui-button" type="submit">Search</button>
+      <button
+        id="use-my-location"
+        class="ui-button ui-button--secondary"
+        hidden
+        type="button"
+      >Search near me</button>
+    </div>
+  </form>
+
+  <p id="issue-search-summary" aria-live="polite" role="status"></p>
+  <noscript>
+    <p>Searching needs JavaScript.</p>
+  </noscript>
+
+  {% if map_config %}
+    <p>Move or zoom the map to see open issues in that area. Loading the map shares your IP address with the map provider.</p>
+    <div id="issue-map" class="report-map" aria-label="Map of open issues"></div>
+    <p class="ui-help">{{ map_attribution }}</p>
+    <button
+      id="search-map-area"
+      class="ui-button ui-button--secondary"
+      type="button"
+    >Search this map area</button>
+  {% endif %}
+
+  <ul id="issue-results" class="ui-list ui-list--divided ui-space-top">
+  </ul>
+  <p class="ui-space-top">
+    <a href="{% url 'intake:form_intake' %}">Report a problem</a>
+    {% if public_tracking_enabled %}
+      · <a href="{% url 'intake:track_reports' %}">Track your reports</a>
+    {% endif %}
+  </p>
+{% endblock content %}
+
+{% block extra_js %}
+  {% if map_config %}
+    {{ map_config|json_script:"issue-map-config" }}
+    <script defer src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+  {% endif %}
+  <script
+    data-api-url="{% url 'intake:search_issues_api' %}"
+    defer
+    src="{% static 'js/issue-search.js' %}"
+  ></script>
+{% endblock extra_js %}

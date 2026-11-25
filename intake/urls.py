@@ -6,6 +6,7 @@ with the public report chat as the home page and its JSON API.
 
 from django.urls import path
 
+from .public_views import IssueSearchApiView, IssueSearchView, TrackReportsView
 from .report_views import (
     PhotoAuthorizeView,
     PhotoVerifyView,
@@ -43,6 +44,9 @@ urlpatterns = [
     path("report/form/", SubmitReportView.as_view(), name="submit_report"),
     path("report/form/received/", ReportReceivedView.as_view(), name="report_received"),
     path("report/photos/", PhotoAuthorizeView.as_view(), name="photo_authorize"),
+    path("track/", TrackReportsView.as_view(), name="track_reports"),
+    path("issues/", IssueSearchView.as_view(), name="search_issues"),
+    path("api/issues/", IssueSearchApiView.as_view(), name="search_issues_api"),
     path(
         "report/photos/<uuid:draft_id>/<uuid:slot_id>/verify/",
         PhotoVerifyView.as_view(),

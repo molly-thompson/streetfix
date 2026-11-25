@@ -4,6 +4,7 @@ from typing import TypedDict
 
 from django.http import HttpRequest
 
+from site_settings.configuration import get_site_configuration
 from site_settings.models import ThemeSettings
 from site_settings.theme import get_resolved_theme, resolve_theme
 
@@ -16,6 +17,15 @@ class ThemeContext(TypedDict):
     favicon_url: str
     brand_image_url: str
     theme_revision: int
+
+
+def public_features(request: HttpRequest) -> dict[str, bool]:
+    """Tell templates which optional public pages the organisation has enabled."""
+    configuration = get_site_configuration()
+    return {
+        "public_tracking_enabled": configuration.public_tracking_enabled,
+        "public_search_enabled": configuration.public_search_enabled,
+    }
 
 
 def theme_settings(request: HttpRequest) -> ThemeContext:

@@ -41,6 +41,16 @@
               <li>
                 <a class="ui-nav-link" href="{% url 'intake:form_intake' %}">Report a problem</a>
               </li>
+              {% if public_search_enabled %}
+                <li>
+                  <a class="ui-nav-link" href="{% url 'intake:search_issues' %}">Open issues</a>
+                </li>
+              {% endif %}
+              {% if public_tracking_enabled %}
+                <li>
+                  <a class="ui-nav-link" href="{% url 'intake:track_reports' %}">Track a report</a>
+                </li>
+              {% endif %}
               {% if perms.intake.review_reportsubmission and request.user.employee_profile %}
                 <li><a class="ui-nav-link" href="{% url 'intake:review_queue' %}">Triage</a></li>
               {% endif %}

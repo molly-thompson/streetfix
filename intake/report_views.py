@@ -29,6 +29,7 @@ from intake.services.rate_limit import (
     client_address,
     reserve,
 )
+from intake.services.tracking import remember_report
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,8 @@ class SubmitReportView(PublicReportingEnabledMixin, FormView):  # type: ignore[t
         """Limit submissions per address, then persist the report."""
         try:
             reserve(REPORT_SUBMISSION, client_address(self.request))
-            form.save(session_key=session_key(self.request))
+            submission = form.save(session_key=session_key(self.request))
+            remember_report(self.request.session, submission)
         except ValidationError as exc:
             form.add_error(None, exc)
             return self.form_invalid(form)

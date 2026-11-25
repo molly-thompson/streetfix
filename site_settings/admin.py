@@ -25,6 +25,25 @@ class SiteConfigurationAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         ),
         ("Report review", {"fields": ("duplicate_matching_enabled",)}),
         (
+            "Public report tracking",
+            {"fields": ("public_tracking_enabled", "public_tracking_max_reports")},
+        ),
+        (
+            "Public issue search",
+            {
+                "fields": (
+                    "public_search_enabled",
+                    "public_search_radius_km",
+                    "public_search_max_results",
+                    "public_search_window_days",
+                ),
+                "description": (
+                    "Only open issues are searchable, and only their type, "
+                    "status, age and approximate location are shown."
+                ),
+            },
+        ),
+        (
             "Triage decision support",
             {
                 "fields": (
