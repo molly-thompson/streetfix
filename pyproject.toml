@@ -15,6 +15,7 @@ dependencies = [
     "django-glrm~=1.1",
     "gunicorn>=26.2,<28.0",
     "psycopg[binary,pool]~=3.3",
+    "pydantic>=2.8,<3",
     "shapely>=2.1,<3",
     "whitenoise[brotli]~=6.12",
 ]
@@ -63,6 +64,9 @@ convention = "google"
     "D106",
 ] # Allow factory Meta classes and methods to not have docstring
 "**/apps.py" = ["D101"] # Allow AppConfig classes to not have docstring
+"intake/services/reportmatch/*.py" = [
+    "D100", "D101", "D103", "E501", "E741", "N815",
+] # Preserve the imported detector's contract and explanation text.
 "config/settings/*.py" = [
     "F403",
     "F405",
