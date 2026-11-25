@@ -18,6 +18,11 @@
         <div class="uk-card-header">
           <h1 id="chatTitle" class="uk-card-title uk-margin-remove">Report a problem</h1>
           <p id="sub" class="uk-text-meta uk-margin-remove-top">Report a problem on a street or public space</p>
+          {% if report_form_enabled %}
+            <p class="uk-margin-remove-top">
+              <a href="{% url 'intake:submit_report' %}">Prefer a form? Use the report form instead.</a>
+            </p>
+          {% endif %}
           <div id="progress" class="uk-margin-small-top"></div>
         </div>
         <div

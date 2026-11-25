@@ -7,11 +7,13 @@ create reports, look up their status and find possible duplicates.
 import logging
 from typing import Any
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.mixins import PermissionRequiredMixin
-from django.core.exceptions import ValidationError
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import QuerySet
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -37,9 +39,10 @@ from intake.forms import (
     OutOfScopeForm,
     ReopenReportForm,
 )
-from intake.models import ReportSubmission
+from intake.models import ReportPhotoSlot, ReportSubmission
 from intake.services.acceptance import accept_report
 from intake.services.duplicates import duplicate_candidates, link_duplicate
+from intake.services.photo_delivery import PhotoUnavailableError, open_report_photo
 from intake.services.queue import pending_reviews
 from intake.services.review import (
     correct_location,
@@ -74,6 +77,7 @@ class ReportChatView(TemplateView):
         """Show the staff triage panel to signed-in staff only."""
         context = super().get_context_data(**kwargs)
         context["show_staff_panel"] = self.request.user.is_staff
+        context["report_form_enabled"] = settings.INTAKE_PUBLIC_REPORTING_ENABLED
         return context
 
 
@@ -164,6 +168,50 @@ class ReviewerMixin(PermissionRequiredMixin):
             and user_id is not None
             and Employee.objects.filter(user_id=user_id).exists()
         )
+
+
+@method_decorator(never_cache, name="dispatch")
+class ReportPhotoView(LoginRequiredMixin, View):
+    """Stream an attached photo to reviewers or assigned employees."""
+
+    def get(self, request: HttpRequest, slot_id: Any) -> HttpResponseBase:
+        """Proxy the authenticated original without returning its provider URL."""
+        user_id = request.user.pk
+        if user_id is None:
+            raise PermissionDenied
+        employee = Employee.objects.filter(user_id=user_id).first()
+        if employee is None:
+            raise PermissionDenied
+        slots = ReportPhotoSlot.objects.filter(
+            draft__submission__isnull=False,
+            asset_id__isnull=False,
+        )
+        if not request.user.has_perm("intake.review_reportsubmission"):
+            slots = slots.filter(
+                draft__submission__work_item__assignments__employee=employee,
+                draft__submission__work_item__assignments__unassigned_at__isnull=True,
+            )
+        slot = get_object_or_404(slots, pk=slot_id)
+        try:
+            photo = open_report_photo(slot)
+        except PhotoUnavailableError:
+            return HttpResponse("Photo is temporarily unavailable.", status=502)
+        content_types = {
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "webp": "image/webp",
+            "heic": "image/heic",
+        }
+        response = StreamingHttpResponse(photo, content_type=content_types[slot.format])
+        response["Content-Length"] = str(slot.size_bytes)
+        disposition = "attachment" if slot.format == "heic" else "inline"
+        response["Content-Disposition"] = (
+            f'{disposition}; filename="report-photo.{slot.format}"'
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Content-Security-Policy"] = "default-src 'none'; sandbox"
+        return response
 
 
 @method_decorator(never_cache, name="dispatch")
@@ -265,6 +313,9 @@ class ReviewDetailView(ReviewerMixin, DetailView):  # type: ignore[type-arg]
             }
         )
         context["duplicate_search"] = duplicate_candidates(self.object)
+        context["report_photos"] = ReportPhotoSlot.objects.filter(
+            draft__submission=self.object, asset_id__isnull=False
+        ).order_by("created_at", "pk")
         return context
 
 
@@ -298,6 +349,9 @@ class CorrectLocationView(ReviewerMixin, View):
                 "submission": submission,
                 "location_form": form,
                 "duplicate_search": duplicate_candidates(submission),
+                "report_photos": ReportPhotoSlot.objects.filter(
+                    draft__submission=submission, asset_id__isnull=False
+                ).order_by("created_at", "pk"),
             },
             status=400,
         )

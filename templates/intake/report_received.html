@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Report received · {{ site_name }}{% endblock title %}
+
+{% block content %}
+  <h1>Report received</h1>
+  <p>Your report has been received for review.</p>
+  <p><a href="{% url 'intake:submit_report' %}">Send another report</a></p>
+  <p><a href="{% url 'intake:form_intake' %}">Back to the home page</a></p>
+{% endblock content %}

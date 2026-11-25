@@ -116,3 +116,50 @@ provide them.
 
 The staff review queue should use the deployment's defined theme tokens and
 existing interface components wherever appropriate.
+
+## Public form, maps and photos
+
+The public form is off until a deployment sets the environment variable
+`INTAKE_PUBLIC_REPORTING_ENABLED` to `true`.
+The chat links to it, and it links back to the chat. Before enabling it:
+
+- Set `INTAKE_CLIENT_IP_HEADER` to a WSGI `META` key (for example
+  `HTTP_X_REAL_IP`) that the hosting edge sets itself and clients cannot forge.
+  The default, `REMOTE_ADDR`, is only correct without a reverse proxy. If the
+  address is missing or invalid, reports and photo uploads are refused.
+- Submissions are limited to 10 per address per hour, and photo upload
+  authorizations to 20 per address per hour. Addresses are stored only as keyed
+  digests. Schedule `python manage.py prune_rate_limits` regularly to remove
+  expired records. Add edge rate limiting as well where the platform offers it;
+  Vercel's one-hour edge window requires Enterprise, so the application limits
+  matter when the edge uses a shorter window.
+- Schedule and monitor `recover_stalled_triage`, as described above.
+
+The location map is optional. It appears only when `INTAKE_MAP_TILE_URL`,
+`INTAKE_MAP_ATTRIBUTION`, `INTAKE_MAP_LATITUDE` and `INTAKE_MAP_LONGITUDE`
+describe a valid HTTPS tile source; otherwise reporters enter coordinates or
+describe the location. Loading tiles shares the visitor's IP address with the
+tile provider, so the form says so.
+
+## Report photos
+
+The form may accept up to three optional photos, each no larger than 10 MB, in
+JPEG, PNG, WebP or HEIC format. Set `INTAKE_PHOTO_UPLOAD_PRESET` to a *signed*
+Cloudinary preset that uses authenticated delivery, does not allow overwrites
+and allows caller-supplied public IDs, and configure `CLOUDINARY_URL`. Photos
+stay off until both are set.
+
+The browser asks the server for each upload. The server reserves an
+unpredictable asset ID bound to the browser session, signs an upload for exactly
+that ID, and afterwards fetches the asset's metadata from the provider to verify
+its identity, format, size and delivery type. Browser-side limits are not
+security controls. An upload failure is shown to the reporter; a report is only
+saved with photos that were verified, and never partly attached.
+
+Access to attached photos goes through an authorized application proxy, not a
+shareable provider link. Authorized reviewers and employees with an open
+assignment to the linked work may view them; access ends when the assignment or
+work link ends.
+
+These are implementation requirements, not a claim that deployed streaming,
+edge protection or retention of uploaded files have been checked.

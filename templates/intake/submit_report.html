@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}Report an issue · {{ site_name }}{% endblock title %}
+
+{% block extra_head %}
+  {% if map_config %}
+    <link href="{% static 'vendor/leaflet/leaflet.css' %}" rel="stylesheet">
+    <link href="{% static 'css/intake.css' %}" rel="stylesheet">
+  {% endif %}
+{% endblock extra_head %}
+
+{% block content %}
+  <h1>Report an issue</h1>
+  <p>Tell us what happened and where. You can submit a report without giving your name.</p>
+  <p>This service is not an emergency service. If anyone is in immediate danger, contact your local emergency service.</p>
+  <p><a href="{% url 'intake:form_intake' %}">Prefer to chat? Report it in the chat instead.</a></p>
+  <form class="uk-form-stacked" method="post">
+    {% csrf_token %}
+    {% if form.errors %}
+      <div class="uk-alert-danger" role="alert" tabindex="-1">
+        <p>Check the details below and try again.</p>
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+    <fieldset class="uk-fieldset">
+      <legend class="uk-legend">The issue</legend>
+      <div id="issue-path"></div>
+      {% include "intake/_report_field.html" with field=form.reported_issue_type %}
+      {% include "intake/_report_field.html" with field=form.other_selected %}
+      {% include "intake/_report_field.html" with field=form.description %}
+      {% include "intake/_report_field.html" with field=form.reported_impact %}
+      {% include "intake/_report_field.html" with field=form.reported_time_sensitivity %}
+
+      <p>Answer the following question only if it applies to the selected issue.</p>
+      {% include "intake/_report_field.html" with field=form.reported_sensitive_content %}
+    </fieldset>
+    <fieldset class="uk-fieldset">
+      <legend class="uk-legend">Location</legend>
+      <p>Describe the location or enter both coordinates if you know them.</p>
+      {% include "intake/_report_field.html" with field=form.location_description %}
+
+      {% if map_config %}
+        <p>Click the map to place a pin, or enter coordinates below. Loading the map shares your IP address with the map provider.</p>
+        <div
+          id="report-map"
+          class="report-map"
+          aria-label="Map for choosing a location"
+        ></div>
+        <p class="uk-text-meta">
+          {% if intake_demo %}
+            <a href="https://www.openstreetmap.org/copyright">{{ map_attribution }}</a>
+          {% else %}
+            {{ map_attribution }}
+          {% endif %}
+        </p>
+        <p id="map-status" aria-live="polite"></p>
+        <button id="clear-map-pin" class="uk-button uk-button-default" type="button">Clear map pin</button>
+      {% endif %}
+      {% include "intake/_report_field.html" with field=form.latitude %}
+      {% include "intake/_report_field.html" with field=form.longitude %}
+    </fieldset>
+    <fieldset id="photo-section" class="uk-fieldset">
+      <legend class="uk-legend">Photos</legend>
+      {% if photos_enabled %}
+        <p>You can add up to three photos (JPEG, PNG, WebP or HEIC, each under 10 MB). Only the team reviewing your report can see them.</p>
+        <div data-photo-upload hidden>
+          <label class="uk-form-label" for="photo-files">Choose photos</label>
+          <input
+            id="photo-files"
+            class="uk-input"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            aria-describedby="photo-status"
+            multiple
+            type="file"
+          >
+          <ul id="photo-list" class="uk-list">
+          </ul>
+        </div>
+        <noscript>
+          <p>Photos need JavaScript. You can still send your report without them.</p>
+        </noscript>
+        <p id="photo-status" aria-live="polite" role="status"></p>
+        {{ form.photo_draft }}
+        {{ form.photo_slots }}
+        {% if form.photo_slots.errors %}
+          <div class="uk-text-danger" role="alert">{{ form.photo_slots.errors }}</div>
+        {% endif %}
+      {% else %}
+        <p>Photo uploads are not available.</p>
+      {% endif %}
+    </fieldset>
+    <fieldset id="contact-section" class="uk-fieldset">
+      <legend class="uk-legend">Contact details</legend>
+      <p>These details are optional unless you request updates.</p>
+      {% include "intake/_report_field.html" with field=form.updates_requested %}
+
+      <div data-contact-details>
+        {% include "intake/_report_field.html" with field=form.contact_method %}
+        {% include "intake/_report_field.html" with field=form.name %}
+        {% include "intake/_report_field.html" with field=form.email %}
+        {% include "intake/_report_field.html" with field=form.telephone %}
+        {% include "intake/_report_field.html" with field=form.address %}
+      </div>
+    </fieldset>
+    <button id="send-report" class="uk-button uk-button-primary" type="submit">Send report</button>
+  </form>
+{% endblock content %}
+
+{% block extra_js %}
+  {{ issue_tree|json_script:"issue-tree" }}
+  {{ contact_methods|json_script:"contact-methods" }}
+  <script defer src="{% static 'js/intake-issue-path.js' %}"></script>
+  <script
+    data-photo-authorize-url="{% url 'intake:photo_authorize' %}"
+    data-photo-verify-url="{% url 'intake:photo_verify' '00000000-0000-0000-0000-000000000000' '00000000-0000-0000-0000-000000000000' %}"
+    defer
+    src="{% static 'js/intake-form.js' %}"
+  ></script>
+  {% if map_config %}
+    {{ map_config|json_script:"report-map-config" }}
+    <script defer src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+    <script defer src="{% static 'js/intake-map.js' %}"></script>
+  {% endif %}
+{% endblock extra_js %}

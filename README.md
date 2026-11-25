@@ -20,8 +20,13 @@ site branding and theme settings.
   related lookup values. Migrations create the initial fixed lookup values.
 - **Django Admin:** Manage the available data and theme settings at `/admin/`.
   Some lookup codes and history records are intentionally read-only.
+- **Public report form (off by default):** An accessible alternative to the
+  chat with optional map pin and photos. It saves a report for central staff
+  review, never straight into work. See `docs/triage-policy-lifecycle.md`
+  before enabling it.
 - **Static assets:** UIkit and the site theme are served from the project's
-  static files; WhiteNoise supports serving collected static files in
+  static files; the pinned Leaflet distribution is also bundled locally for the
+  optional report map. WhiteNoise supports serving collected static files in
   production.
 
 ## Tech stack
@@ -38,6 +43,9 @@ site branding and theme settings.
 ### Prerequisites
 
 Install Python 3.14 and [uv](https://docs.astral.sh/uv/).
+Node.js and npm are only needed when updating the bundled Leaflet assets.
+After changing its pinned version, run `npm ci --ignore-scripts` followed by
+`npm run sync-leaflet` and include the updated distribution and license.
 
 ### Install and configure
 
@@ -108,6 +116,9 @@ Development settings provide local `ALLOWED_HOSTS` and
 | --- | --- | --- |
 | `/` | Public intake | Guided report chat in six languages (the home page); creates a submitted work item. Signed-in staff also see the triage panel. |
 | `/report/` | Public intake | Redirects to `/` for older links. |
+| `/report/form/` | Public intake | Accessible report form; returns 404 unless `INTAKE_PUBLIC_REPORTING_ENABLED` is set. |
+| `/report/photos/` | Public API | `POST` to reserve a signed photo upload (rate limited; same gate as the form). |
+| `/review/` | Staff | Central review queue for reports; needs the review permission. |
 | `/api/cases/` | Public API | `POST` a report from the chat; returns its `SF-00000` reference. |
 | `/api/cases/nearby/` | Public API | `GET ?category=&postcode=` returns an open job of the same type within 200 m from the last 30 days, if any. |
 | `/api/cases/<reference>/` | Public API | `GET` a report's status by reference, without personal details. |

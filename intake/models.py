@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from typing import Any
+from uuid import uuid4
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -679,3 +680,94 @@ class ReportSubmissionPhoto(models.Model):
     def __str__(self) -> str:
         """Identify the parent submission."""
         return f"Photo for submission {self.report_submission_id}"
+
+
+class RateLimitRecord(models.Model):
+    """Rolling request history for one public action and pseudonymous address."""
+
+    scope = models.CharField(max_length=40)
+    address_digest = models.CharField(max_length=64)
+    timestamps = models.JSONField(default=list)
+    last_hit_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("scope", "address_digest"),
+                name="unique_rate_limit_per_scope_and_address",
+            )
+        ]
+
+    def __str__(self) -> str:
+        """Identify the record without exposing its digest."""
+        return f"{self.scope} rate limit {self.pk}"
+
+
+class ReportPhotoDraft(models.Model):
+    """A session-bound collection of reserved photo uploads."""
+
+    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    session_digest = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    submission = models.OneToOneField(
+        ReportSubmission,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="photo_draft",
+    )
+
+    def __str__(self) -> str:
+        """Identify the draft without exposing its session binding."""
+        return f"Report photo draft {self.pk}"
+
+
+class ReportPhotoSlot(models.Model):
+    """A server-generated asset reservation within a photo draft."""
+
+    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    draft = models.ForeignKey(
+        ReportPhotoDraft, on_delete=models.PROTECT, related_name="slots"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    asset_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    format = models.CharField(max_length=10, blank=True)
+    size_bytes = models.PositiveIntegerField(null=True, blank=True)
+    version = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        asset_id__isnull=True,
+                        format="",
+                        size_bytes__isnull=True,
+                        version__isnull=True,
+                    )
+                    | (
+                        Q(
+                            asset_id__isnull=False,
+                            size_bytes__isnull=False,
+                            version__isnull=False,
+                            size_bytes__gte=1,
+                            size_bytes__lte=10_000_000,
+                            version__gte=1,
+                        )
+                        & ~Q(asset_id="")
+                        & Q(format__in=("jpg", "jpeg", "png", "webp", "heic"))
+                    )
+                ),
+                name="report_photo_slot_verification_complete",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """Identify the reserved slot."""
+        return f"Report photo slot {self.pk}"
+
+    @property
+    def public_id(self) -> str:
+        """Return the fixed Cloudinary public ID reserved for this slot."""
+        return f"intake/report-photos/{self.pk.hex}"

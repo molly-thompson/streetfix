@@ -51,6 +51,17 @@
     </dd>
   </dl>
 
+  {% if report_photos %}
+    <h2>Report photos</h2>
+    <ul class="uk-list">
+      {% for photo in report_photos %}
+        <li>
+          <a href="{% url 'intake:report_photo' photo.pk %}">Photo {{ forloop.counter }}</a>
+          {% if photo.format == "heic" %}(HEIC download){% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
   {% if submission.triage_state == "NEEDS_REVIEW" %}
     <p>
       <a

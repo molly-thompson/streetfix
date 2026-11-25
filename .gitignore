@@ -34,6 +34,7 @@ tmp/
 # Local files
 venv/
 .venv/
+node_modules/
 
 # Python-generated files
 __pycache__/

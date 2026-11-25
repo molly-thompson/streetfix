@@ -1,0 +1,11 @@
+{
+  "name": "site-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync-leaflet": "node scripts/sync-leaflet.mjs"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  }
+}

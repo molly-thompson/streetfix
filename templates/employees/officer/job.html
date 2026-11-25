@@ -58,6 +58,17 @@
         <span class="muted">No description from the public report.</span>
       {% endif %}
     </p>
+    {% if report_photos %}
+      <h4>Report photos</h4>
+      <ul>
+        {% for photo in report_photos %}
+          <li>
+            <a href="{% url 'intake:report_photo' photo.pk %}">Photo {{ forloop.counter }}</a>
+            {% if photo.format == "heic" %}(HEIC download){% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
     {% if from_management %}
       <div class="notes">
         <span class="eyebrow">From management</span>
