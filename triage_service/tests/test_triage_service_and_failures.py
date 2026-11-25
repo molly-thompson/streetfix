@@ -163,4 +163,3 @@ def test_gemini_provider_raises_unavailable_when_503_retries_exhausted(
     policy = apply_safe_override(config_registry.get("streetfix"), None)
     with pytest.raises(ProviderUnavailableError):
         provider.analyze_report(TriageRequest(description="Deep pothole on High Street."), policy)
-
