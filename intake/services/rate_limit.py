@@ -25,8 +25,15 @@ class RateLimit:
 
 PHOTO_AUTHORIZATION = RateLimit("photo_authorization", 20, timedelta(hours=1))
 REPORT_SUBMISSION = RateLimit("report_submission", 10, timedelta(hours=1))
+REFERENCE_LOOKUP = RateLimit("reference_lookup", 20, timedelta(hours=1))
+ISSUE_TEXT_SEARCH = RateLimit("issue_text_search", 60, timedelta(hours=1))
 RATE_LIMITED = "rate_limited"
-LONGEST_WINDOW = max(PHOTO_AUTHORIZATION.window, REPORT_SUBMISSION.window)
+LONGEST_WINDOW = max(
+    PHOTO_AUTHORIZATION.window,
+    REPORT_SUBMISSION.window,
+    REFERENCE_LOOKUP.window,
+    ISSUE_TEXT_SEARCH.window,
+)
 
 
 def client_address(request: HttpRequest) -> str:

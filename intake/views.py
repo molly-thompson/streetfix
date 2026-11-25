@@ -73,6 +73,7 @@ from intake.services.review import (
     reject_out_of_scope,
     reopen_final_decision,
 )
+from intake.services.tracking import remember_report
 from intake.services.triage.engine import (
     engine_mode,
     request_assessment,
@@ -234,6 +235,7 @@ class CreateReportView(View):
             report = parse_report(request.body)
             reserve(REPORT_SUBMISSION, client_address(request))
             submission = submit_chat_report(report, session_key=session_key(request))
+            remember_report(request.session, submission)
         except ValidationError as error:
             status = 429 if error.code == RATE_LIMITED else 400
             return JsonResponse({"error": " ".join(error.messages)}, status=status)
