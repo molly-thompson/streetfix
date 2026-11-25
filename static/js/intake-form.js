@@ -1,6 +1,6 @@
 (() => {
   const script = document.currentScript;
-  const form = document.querySelector("form.uk-form-stacked");
+  const form = document.querySelector("form.ui-form");
   if (!form) return;
 
   // Contact details: show only what the chosen way of receiving updates needs.
@@ -12,7 +12,7 @@
     const codes = JSON.parse(methodsElement.textContent);
     const fieldFor = { EMAIL: "email", TELEPHONE: "telephone", POST: "address" };
     const field = (name) => details.querySelector(`[data-field="${name}"]`);
-    const hasError = (name) => Boolean(field(name)?.querySelector(".uk-text-danger"));
+    const hasError = (name) => Boolean(field(name)?.querySelector(".ui-error"));
 
     function updateContact() {
       const wanted = updates.checked;

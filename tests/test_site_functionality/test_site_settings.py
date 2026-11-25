@@ -4,13 +4,14 @@ import pytest
 from cloudinary import CloudinaryResource
 from cloudinary import config as cloudinary_config
 from colorfield.widgets import ColorWidget
-from django import forms
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import Client, RequestFactory
 
 from site_settings.admin import ThemeSettingsAdmin
-from site_settings.models import NAVBAR_BRAND_ICON_CHOICES, ThemeSettings
+from site_settings.models import ThemeSettings
+from site_settings.templatetags.app_ui import ICON_NAMES, icon
 
 pytestmark = pytest.mark.django_db
 
@@ -31,6 +32,15 @@ def test_context_uses_default_branding_without_settings_row(client: Client) -> N
     assert 'rel="icon"' not in content
 
 
+def test_font_tokens_render_as_valid_css_declarations(client: Client) -> None:
+    """Do not HTML-escape font stacks into invalid CSS values."""
+    content = client.get("/").content.decode()
+
+    assert "--theme-font-sans: IBM Plex Sans, system-ui, sans-serif;" in content
+    assert "--theme-font-mono: IBM Plex Mono, ui-monospace, monospace;" in content
+    assert "--theme-font-sans: &quot;" not in content
+
+
 def test_rejects_blank_site_name() -> None:
     """Require the configured site name to contain a non-whitespace character."""
     settings = ThemeSettings(site_name="   ")
@@ -39,33 +49,18 @@ def test_rejects_blank_site_name() -> None:
         settings.save()
 
 
-def test_site_name_and_brand_icon_render_in_shared_template(
+def test_site_name_renders_in_shared_template(
     client: Client, theme_settings: ThemeSettings
 ) -> None:
-    """Render the configured name and decorative icon in the shared branding."""
+    """Render the configured name in the shared branding."""
     theme_settings.site_name = "StreetFix"
-    theme_settings.navbar_brand_icon = "home"
     theme_settings.save()
 
     response = client.get("/")
     content = response.content.decode()
 
-    assert 'aria-hidden="true"' in content
-    assert 'uk-icon="icon: home"' in content
     assert "StreetFix" in content
     assert "© " in content and "StreetFix. All rights reserved." in content
-
-
-def test_blank_brand_icon_does_not_render_icon(
-    client: Client, theme_settings: ThemeSettings
-) -> None:
-    """Do not render an icon when the no-icon choice is selected."""
-    theme_settings.navbar_brand_icon = ""
-    theme_settings.save()
-
-    response = client.get("/")
-
-    assert 'uk-icon="icon:' not in response.content.decode()
 
 
 def test_favicon_renders_only_when_configured(
@@ -101,20 +96,63 @@ def test_favicon_renders_only_when_configured(
     assert 'rel="icon"' not in unset_content
 
 
-def test_admin_brand_icon_is_a_dropdown() -> None:
-    """Expose the finite UIkit icon choices through a select control."""
+def test_brand_image_renders_beside_wordmark(
+    client: Client,
+    theme_settings: ThemeSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Render the optional brand image beside the site name."""
+    cloudinary_configuration = cloudinary_config()
+    monkeypatch.setattr(
+        cloudinary_configuration, "cloud_name", "test-cloud", raising=False
+    )
+    monkeypatch.setattr(cloudinary_configuration, "secure", True, raising=False)
+    theme_settings.brand_image = CloudinaryResource(
+        public_id="branding/wordmark-mark",
+        format="svg",
+        resource_type="image",
+    )
+    theme_settings.save()
+
+    content = client.get("/").content.decode()
+
+    assert "branding/wordmark-mark.svg" in content
+    assert 'class="ui-brand__image"' in content
+    assert theme_settings.site_name in content
+
+
+def test_admin_exposes_brand_image_without_navbar_icon() -> None:
+    """Expose branding uploads without a fixed navbar icon choice."""
     request = RequestFactory().get("/admin/")
     form_class = ThemeSettingsAdmin(ThemeSettings, AdminSite()).get_form(request)
     form = form_class()
 
-    icon_field = form.fields["navbar_brand_icon"]
-    assert isinstance(icon_field, forms.ChoiceField)
-    assert isinstance(icon_field.widget, forms.Select)
-    assert icon_field.choices == NAVBAR_BRAND_ICON_CHOICES
-    assert ("site_name", "favicon", "navbar_brand_icon") in [
+    assert "brand_image" in form.fields
+    assert "navbar_brand_icon" not in form.fields
+    assert ("site_name", "brand_image", "favicon") in [
         tuple(field for field in fieldset["fields"])
         for _, fieldset in ThemeSettingsAdmin.fieldsets
     ]
+
+
+def test_theme_admin_change_page_includes_resolved_preview(
+    client: Client,
+    django_user_model: type[User],
+    theme_settings: ThemeSettings,
+) -> None:
+    """Render the shared resolved variables in the admin preview."""
+    admin = django_user_model.objects.create_superuser(
+        username="theme-admin",
+        email="theme@example.com",
+        password="test-password",  # noqa: S106
+    )
+    client.force_login(admin)
+
+    response = client.get("/site-admin/site_settings/themesettings/1/change/")
+
+    assert response.status_code == 200
+    assert b"Theme preview" in response.content
+    assert b"--theme-primary:" in response.content
 
 
 def test_admin_navbar_link_is_removed_without_changing_other_links(
@@ -126,9 +164,10 @@ def test_admin_navbar_link_is_removed_without_changing_other_links(
     content = client.get("/no-such-page/").content.decode()
 
     assert '<a href="/admin/">Admin</a>' not in content
-    assert '<a href="/">Report a problem</a>' in content
-    assert '<a href="/employees/">Employees</a>' in content
-    assert '<a href="/analytics/">Analytics</a>' not in content
+    assert 'class="ui-nav-link"' in content
+    assert 'href="/">Report a problem</a>' in content
+    assert 'href="/employees/">Employees</a>' in content
+    assert 'href="/analytics/">Analytics</a>' not in content
 
 
 def test_saves_and_exposes_core_and_optional_theme_values(
@@ -152,7 +191,7 @@ def test_saves_and_exposes_core_and_optional_theme_values(
     assert "--theme-radius: 8px;" in content
     assert "--theme-surface: #eeeeee;" in content
     assert "--theme-link: #654321;" in content
-    assert "--theme-border:" not in content
+    assert "--theme-border:" in content
 
 
 def test_rejects_invalid_color_values() -> None:
@@ -176,8 +215,8 @@ def test_rejects_low_contrast_text_before_writing() -> None:
 
 
 @pytest.mark.django_db
-def test_rejects_low_contrast_primary_action_text() -> None:
-    """Validate default white text against the configured primary color."""
+def test_rejects_low_contrast_derived_primary_links() -> None:
+    """Reject a primary color that cannot serve as a link."""
     settings = ThemeSettings(primary_color="#ffffff")
 
     with pytest.raises(ValidationError) as error:
@@ -192,6 +231,7 @@ def test_accepts_text_just_above_the_contrast_threshold() -> None:
     """Accept near-threshold text when explicit tokens keep all pairs legible."""
     settings = ThemeSettings(
         text_color="#767676",
+        background_color="#ffffff",
         surface_color="#ffffff",
         emphasis_text_color="#767676",
         muted_text_color="#767676",
@@ -285,3 +325,18 @@ def test_settings_are_a_singleton(theme_settings: ThemeSettings) -> None:
 
     assert ThemeSettings.objects.count() == 1
     assert ThemeSettings.objects.get().primary_color == "#654321"
+
+
+def test_icon_tag_uses_approved_sprite_symbols() -> None:
+    """Render approved symbols and reject names outside the fixed set."""
+    rendered = str(icon("arrow-right"))
+
+    assert "ui-icon" in rendered
+    assert "app-icons" in rendered
+    assert "#arrow-right" in rendered
+    assert 'aria-hidden="true"' in rendered
+
+    with pytest.raises(ValueError, match="Unknown site icon"):
+        icon("not-an-approved-symbol")
+
+    assert "arrow-right" in ICON_NAMES

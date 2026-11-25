@@ -12,8 +12,6 @@ from .dispatch import _status
 from .organisation_models import Employee
 from .work_models import WorkItem, WorkItemComment, WorkItemReport
 
-AWAITING_APPROVAL = "RESOLVED"
-
 
 def latest_report(work_item: WorkItem) -> WorkItemReport | None:
     """Return the most recently submitted visit report for the work item."""
@@ -27,7 +25,7 @@ def latest_report(work_item: WorkItem) -> WorkItemReport | None:
 
 
 def _check_awaiting_approval(work_item: WorkItem) -> WorkItemReport:
-    if work_item.status.code != AWAITING_APPROVAL:
+    if not work_item.status.is_awaiting_review:
         raise ValidationError("Only resolved work can be reviewed.")
     report = latest_report(work_item)
     if report is None:

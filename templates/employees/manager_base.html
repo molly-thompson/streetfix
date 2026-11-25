@@ -12,6 +12,7 @@
       rel="stylesheet"
     >
     <link href="{% static 'css/fieldops.css' %}" rel="stylesheet">
+    {% include "_theme_variables.html" %}
   </head>
   <body>
     {% with me=request.user.employee_profile %}
@@ -69,9 +70,9 @@
                 </div>
                 <a class="mi" href="{% url 'intake:form_intake' %}">Back to {{ site_name }}</a>
                 {% if request.user.is_staff %}<a
-                  class="mi"
-                  href="{% url 'admin:index' %}"
-                >Configuration (admin)</a>{% endif %}
+  class="mi"
+  href="{% url 'admin:index' %}"
+>Configuration (admin)</a>{% endif %}
                 <div class="sep"></div>
                 <form action="{% url 'logout' %}" method="post">
                   {% csrf_token %}

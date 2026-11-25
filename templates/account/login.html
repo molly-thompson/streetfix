@@ -1,124 +1,108 @@
 {% extends "account/base_entrance.html" %}
 
-{% comment %} djlint:off {% endcomment %}
-{% load i18n %}
-{% load allauth account %}
+{% load allauth account i18n %}
+
 {% block head_title %}
-    {% trans "Sign In" %}
+  {% trans "Sign In" %}
 {% endblock head_title %}
+
 {% block entrance_content %}
-    <style>
-        .uk-card:has(.employee-sign-in) {
-            width: 100%;
-            max-width: 500px;
-            margin-inline: auto;
-        }
-        @media (max-width: 640px) {
-            .uk-card:has(.employee-sign-in) { padding: 28px 24px; }
-        }
-    </style>
-    <div class="employee-sign-in">
-        <div class="uk-text-center">
-            <h1>{% trans "Sign in" %}</h1>
+  <div class="employee-sign-in ui-stack">
+    <div class="ui-page-header">
+      <h1>{% trans "Sign in" %}</h1>
+    </div>
+
+    {% if not SOCIALACCOUNT_ONLY %}
+      {% url "account_login" as login_url %}
+      <form class="ui-form ui-stack" action="{{ login_url }}" method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="ui-alert ui-alert--danger" role="alert">
+            {% for error in form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="ui-field">
+          <label class="ui-label" for="{{ form.login.id_for_label }}">{% trans "Email" %}</label>
+          <input
+            class="ui-input"
+            id="{{ form.login.id_for_label }}"
+            name="{{ form.login.html_name }}"
+            type="email"
+            autocomplete="email"
+            value="{{ form.login.value|default_if_none:'' }}"
+            required
+            autofocus
+            {% if form.login.errors %}aria-invalid="true"{% endif %}
+          >
+          {% for error in form.login.errors %}
+            <div class="ui-error">{{ error }}</div>
+          {% endfor %}
         </div>
 
-        {% if not SOCIALACCOUNT_ONLY %}
-            {% url 'account_login' as login_url %}
-            <p>
-            <form class="uk-form-stacked uk-text-left" method="post" action="{{ login_url }}">
-                {% csrf_token %}
-                {% if form.non_field_errors %}
-                    <div class="uk-alert-danger" uk-alert>
-                        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
-                    </div>
-                {% endif %}
+        <div class="ui-field">
+          <label class="ui-label" for="{{ form.password.id_for_label }}">{% trans "Password" %}</label>
+          <input
+            class="ui-input"
+            id="{{ form.password.id_for_label }}"
+            name="{{ form.password.html_name }}"
+            type="password"
+            autocomplete="current-password"
+            required
+            {% if form.password.errors %}aria-invalid="true"{% endif %}
+          >
+          {% for error in form.password.errors %}
+            <div class="ui-error">{{ error }}</div>
+          {% endfor %}
+        </div>
 
-                <div class="uk-margin">
-                    <label class="uk-form-label" for="{{ form.login.id_for_label }}">{% trans "Email" %}</label>
-                    <div class="uk-form-controls">
-                        <input
-                            class="uk-input{% if form.login.errors %} uk-form-danger{% endif %}"
-                            id="{{ form.login.id_for_label }}"
-                            name="{{ form.login.html_name }}"
-                            type="email"
-                            autocomplete="email"
-                            value="{{ form.login.value|default_if_none:'' }}"
-                            required
-                            autofocus
-                        >
-                    </div>
-                    {% for error in form.login.errors %}<div class="uk-text-danger uk-text-small">{{ error }}</div>{% endfor %}
-                </div>
+        <div class="ui-cluster ui-auth-options">
+          {% if form.remember %}
+            <label class="ui-checkbox">
+              <input
+                id="{{ form.remember.id_for_label }}"
+                name="{{ form.remember.html_name }}"
+                type="checkbox"
+                {% if form.remember.value %}checked{% endif %}
+              >
+              {% trans "Remember me" %}
+            </label>
+          {% endif %}
+          <a href="{% url 'account_reset_password' %}">{% trans "Forgot your password?" %}</a>
+        </div>
 
-                <div class="uk-margin">
-                    <label class="uk-form-label" for="{{ form.password.id_for_label }}">{% trans "Password" %}</label>
-                    <div class="uk-form-controls">
-                        <input
-                            class="uk-input{% if form.password.errors %} uk-form-danger{% endif %}"
-                            id="{{ form.password.id_for_label }}"
-                            name="{{ form.password.html_name }}"
-                            type="password"
-                            autocomplete="current-password"
-                            required
-                        >
-                    </div>
-                    {% for error in form.password.errors %}<div class="uk-text-danger uk-text-small">{{ error }}</div>{% endfor %}
-                </div>
-
-                {% if form.remember %}
-                    <div class="uk-margin uk-flex uk-flex-between uk-flex-middle uk-flex-wrap" style="gap: 12px 24px;">
-                        <label class="uk-text-small" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input
-                                class="uk-checkbox"
-                                id="{{ form.remember.id_for_label }}"
-                                name="{{ form.remember.html_name }}"
-                                type="checkbox"
-                                {% if form.remember.value %}checked{% endif %}
-                            >
-                            {% trans "Remember me" %}
-                        </label>
-                        <a class="uk-text-small" href="{% url 'account_reset_password' %}">{% trans "Forgot your password?" %}</a>
-                    </div>
-                {% else %}
-                    <div class="uk-margin uk-text-right">
-                        <a class="uk-text-small" href="{% url 'account_reset_password' %}">{% trans "Forgot your password?" %}</a>
-                    </div>
-                {% endif %}
-
-                {{ redirect_field }}
-                <div class="uk-text-center uk-margin-top">
-                    <button class="uk-button uk-button-primary" style="width:100%" type="submit">
-                        {% trans "Sign in" %}
-                    </button>
-                </div>
-            </form>
-            </p>
-        {% endif %}
-
-        {% if LOGIN_BY_CODE_ENABLED or PASSKEY_LOGIN_ENABLED %}
-            {% element hr %}
-            {% endelement %}
-            {% element button_group vertical=True %}
-                {% if PASSKEY_LOGIN_ENABLED %}
-                    {% element button type="submit" form="mfa_login" id="passkey_login" tags="prominent,login,outline,primary" %}
-                        {% trans "Sign in with a passkey" %}
-                    {% endelement %}
-                {% endif %}
-                {% if LOGIN_BY_CODE_ENABLED %}
-                    {% element button href=request_login_code_url tags="prominent,login,outline,primary" %}
-                        {% trans "Send me a sign-in code" %}
-                    {% endelement %}
-                {% endif %}
-            {% endelement %}
-        {% endif %}
-        {% if SOCIALACCOUNT_ENABLED %}
-            {% include "socialaccount/snippets/login.html" with page_layout="entrance" %}
-        {% endif %}
-    </div>
-{% endblock entrance_content %}
-{% block extra_body %}
-    {{ block.super }}
-    {% if PASSKEY_LOGIN_ENABLED %}
-        {% include "mfa/webauthn/snippets/login_script.html" with button_id="passkey_login" %}
+        {{ redirect_field }}
+        <button class="ui-button ui-button--full" type="submit">{% trans "Sign in" %}</button>
+      </form>
     {% endif %}
-{% endblock %}
+
+    {% if LOGIN_BY_CODE_ENABLED or PASSKEY_LOGIN_ENABLED %}
+      {% element hr %}{% endelement %}
+    {% element button_group vertical=True %}
+    {% if PASSKEY_LOGIN_ENABLED %}
+      {% element button type="submit" form="mfa_login" id="passkey_login" tags="prominent,login,outline,primary" %}
+      {% trans "Sign in with a passkey" %}
+    {% endelement %}
+{% endif %}
+{% if LOGIN_BY_CODE_ENABLED %}
+  {% element button href=request_login_code_url tags="prominent,login,outline,primary" %}
+  {% trans "Send me a sign-in code" %}
+{% endelement %}
+{% endif %}
+{% endelement %}
+{% endif %}
+
+{% if SOCIALACCOUNT_ENABLED %}
+  {% include "socialaccount/snippets/login.html" with page_layout="entrance" %}
+{% endif %}
+</div>
+{% endblock entrance_content %}
+
+{% block extra_body %}
+  {{ block.super }}
+  {% if PASSKEY_LOGIN_ENABLED %}
+    {% include "mfa/webauthn/snippets/login_script.html" with button_id="passkey_login" %}
+  {% endif %}
+{% endblock extra_body %}

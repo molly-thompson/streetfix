@@ -426,6 +426,7 @@ def test_photos_go_to_cloudinary_when_configured(
 ) -> None:
     """With Cloudinary set up, the photo's Cloudinary address is saved."""
     settings.OFFICER_PHOTOS_ON_CLOUDINARY = True
+    settings.OFFICER_PHOTO_FOLDER = "deployment/work-photos"
     uploads: list[dict[str, Any]] = []
 
     def fake_upload(file: Any, **options: Any) -> dict[str, str]:
@@ -440,7 +441,7 @@ def test_photos_go_to_cloudinary_when_configured(
     )
 
     assert saved.image_url == "https://res.cloudinary.com/demo/image/upload/a.jpg"
-    assert uploads[0]["folder"] == f"streetfix/work-photos/{job.pk}"
+    assert uploads[0]["folder"] == f"deployment/work-photos/{job.pk}"
 
 
 def test_failed_cloudinary_upload_is_shown_to_the_officer(

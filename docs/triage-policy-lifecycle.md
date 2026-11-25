@@ -126,11 +126,22 @@ in the browser; they are stored as an AI-stage triage attempt for the reviewer,
 and a reporter's claim that a report duplicates earlier work is stored as
 evidence. Only a reviewer links duplicates. The chat accepts a single photo.
 
+The chat lists active, routable issue types from the same taxonomy as the form.
+Optional chat categories add keyword suggestions, sub-options and default
+priority metadata; they must be linked to a shared issue type. After upgrading,
+administrators should use the empty issue-type filter in the chat category
+admin to reconcile unlinked legacy categories. The original routing fields are
+preserved for reference. Invalid priority codes are reported in application
+logs; category priority can be blank for the normal default. Original labels
+with matching translations are translated; custom or renamed category and
+sub-option labels are not automatically translated.
+
 Every report gets a random reference code that does not reveal how many reports
 exist. `INTAKE_REFERENCE_PREFIX` optionally puts a deployment-specific prefix in
 front of it. Anyone with a reference can see its progress (received, under
 review, or the work's status once accepted), never review decisions or personal
-details.
+details. The site configuration's separate `reference_prefix` field is not used
+for these references; keep `INTAKE_REFERENCE_PREFIX` stable for existing links.
 
 The chat and the rate limits are always on. The form, and photo upload for both,
 stay off until a deployment sets the environment variable
@@ -179,3 +190,8 @@ work link ends.
 
 These are implementation requirements, not a claim that deployed streaming,
 edge protection or retention of uploaded files have been checked.
+
+Officer photos use the `OFFICER_PHOTO_FOLDER` Cloudinary folder, defaulting to
+`work-photos`; set it to the existing folder before deployment if an upload
+policy requires the previous path. Already stored photo URLs are unchanged.
+Set `GEOCODER_USER_AGENT` to identify the deployment when reverse geocoding.

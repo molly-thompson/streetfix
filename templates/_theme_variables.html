@@ -1,0 +1,9 @@
+{% if theme_css_vars %}
+  <style>
+    :root {
+      {% for name, value in theme_css_vars.items %}
+        {{ name }}: {{ value }};
+      {% endfor %}
+    }
+  </style>
+{% endif %}

@@ -2,7 +2,7 @@
 
 # mypy: disable-error-code=type-arg
 
-from typing import Any
+from typing import Any, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -17,9 +17,13 @@ from employees.organisation_models import Employee
 from intake.forms import PolicyApprovalForm
 from intake.models import (
     ContactMethod,
+    IssueCategory,
+    IssueCategoryKeyword,
+    IssueSubcategory,
     Reporter,
     ReportSubmission,
     ReportSubmissionPhoto,
+    SlaPolicy,
     TriageAttempt,
     TriagePolicy,
     TriagePolicyRule,
@@ -34,8 +38,13 @@ from intake.services.triage.scenarios import evaluate_scenarios
 class ContactMethodAdmin(admin.ModelAdmin):
     """Allow label edits while keeping seeded contact methods fixed."""
 
-    list_display = ("code", "label")
-    list_editable = ("label",)
+    list_display: ClassVar[tuple[str, ...]] = (  # type: ignore[misc]
+        "code",
+        "label",
+        "active",
+        "sort_order",
+    )
+    list_editable: ClassVar[tuple[str, ...]] = ("label", "active", "sort_order")
     ordering = ("code",)
     readonly_fields = ("code",)
 
@@ -50,6 +59,86 @@ class ContactMethodAdmin(admin.ModelAdmin):
     ) -> bool:
         """Prevent deletion of fixed contact methods."""
         return False
+
+
+class IssueSubcategoryInline(admin.TabularInline):
+    """Edit category sub-options alongside the category."""
+
+    model = IssueSubcategory
+    extra = 0
+
+
+class IssueCategoryKeywordInline(admin.TabularInline):
+    """Edit category keyword rules alongside the category."""
+
+    model = IssueCategoryKeyword
+    extra = 0
+
+
+@admin.register(IssueCategory)
+class IssueCategoryAdmin(admin.ModelAdmin):
+    """Admin configuration for public issue categories."""
+
+    list_display = (
+        "code",
+        "label",
+        "issue_type",
+        "active",
+        "sort_order",
+    )
+    list_editable = ("label", "active", "sort_order")
+    list_filter = ("active", ("issue_type", admin.EmptyFieldListFilter))
+    search_fields = ("code", "label", "issue_type__name", "issue_type__code")
+    fields = (
+        "code",
+        "issue_type",
+        "label",
+        "default_priority_code",
+        "default_urgency_code",
+        "active",
+        "sort_order",
+        "department_name",
+        "issue_type_code",
+        "issue_type_name",
+    )
+    readonly_fields = ("department_name", "issue_type_code", "issue_type_name")
+    inlines = (IssueSubcategoryInline, IssueCategoryKeywordInline)
+
+    def changelist_view(
+        self, request: HttpRequest, extra_context: dict[str, Any] | None = None
+    ) -> HttpResponse:
+        """Flag legacy metadata that needs an administrator to link it."""
+        unlinked = (
+            self.get_queryset(request)
+            .filter(active=True, issue_type__isnull=True)
+            .count()
+        )
+        if unlinked:
+            self.message_user(
+                request,
+                f"{unlinked} active chat "
+                f"{'category needs' if unlinked == 1 else 'categories need'} "
+                "a shared issue type. Filter by empty issue type to reconcile them.",
+                level=messages.WARNING,
+            )
+        return super().changelist_view(request, extra_context)
+
+
+@admin.register(SlaPolicy)
+class SlaPolicyAdmin(admin.ModelAdmin):
+    """Admin configuration for public report service targets."""
+
+    list_display = (
+        "priority_code",
+        "acknowledgement_hours",
+        "resolution_working_days",
+        "active",
+    )
+    list_editable = (
+        "acknowledgement_hours",
+        "resolution_working_days",
+        "active",
+    )
 
 
 @admin.register(Reporter)

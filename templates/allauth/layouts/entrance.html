@@ -2,34 +2,16 @@
 
 {% comment %} djlint:off {% endcomment %}
 {% block page_content %}
-<style>
-  main:has(.entrance-card) { width: 100%; box-sizing: border-box; }
-  .entrance-card { width: 100%; max-width: 560px; }
-</style>
-<div class="uk-section uk-section-large uk-flex uk-flex-middle uk-flex-center uk-flex-auto">
-  <div class="uk-container uk-width-1-1">
-    <div class="uk-flex uk-flex-center">
-      <div class="uk-width-1-1 uk-flex uk-flex-center">
-        <div class="uk-card uk-card-default uk-card-body uk-border-rounded uk-box-shadow-small uk-padding-large entrance-card">
-          
-          <div class="uk-text-center">
-            {% block entrance_content %} {% endblock entrance_content %}
-          </div>
-
-          <div class="uk-text-center uk-margin-top">
-            {% block redirect_link %}
-            <a
-              href="{% url 'intake:form_intake' %}"
-              class="uk-link-muted uk-text-small uk-text-decoration-none"
-            >
-              ← Back to homepage
-            </a>
-            {% endblock redirect_link %}
-          </div>
-
-        </div>
+  <div class="ui-auth-layout">
+    <div class="ui-card ui-auth-card">
+      <div class="ui-card__body">
+        {% block entrance_content %}{% endblock entrance_content %}
+      </div>
+      <div class="ui-card__footer ui-auth-card__footer">
+        {% block redirect_link %}
+          <a href="{% url 'intake:form_intake' %}">← Back to homepage</a>
+        {% endblock redirect_link %}
       </div>
     </div>
   </div>
-</div>
 {% endblock %}
