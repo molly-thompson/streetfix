@@ -142,7 +142,7 @@ Development settings provide local `ALLOWED_HOSTS` and
 | `config/` | Django URL routing, ASGI/WSGI entry points, and settings modules. |
 | `intake/` | Public reporting and report-submission models. |
 | `employees/` | Departments, employees, work items, lifecycle, and work options. |
-| `analytics/` | Analytics app and overview page scaffold. |
+| `analytics/` | Department-scoped exploratory analysis and pattern discovery. |
 | `site_settings/` | Site branding, theme model, and template context processor. |
 | `templates/` | Shared base template and app page templates. |
 | `static/` | Source CSS, JavaScript, and UIkit assets. |
