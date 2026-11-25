@@ -5,23 +5,25 @@
 {% block content %}
   <h1>Triage dashboard</h1>
   <p>Review incoming reports and make the final decision. Urgent reports appear first.</p>
-  <div class="uk-grid-small uk-child-width-1-3@s uk-margin-medium" uk-grid>
-    <div>
-      <strong>{{ queue_totals.total }}</strong>
-      <br>
-      Reports in the queue
+  <section class="ui-card" aria-label="Queue summary">
+    <div class="ui-card__body ui-cluster">
+      <div>
+        <strong>{{ queue_totals.total }}</strong>
+        <br>
+        Reports in the queue
+      </div>
+      <div>
+        <strong>{{ queue_totals.urgent }}</strong>
+        <br>
+        Flagged for urgent review
+      </div>
+      <div>
+        <strong>{{ queue_totals.processing }}</strong>
+        <br>
+        Awaiting rules processing
+      </div>
     </div>
-    <div>
-      <strong>{{ queue_totals.urgent }}</strong>
-      <br>
-      Flagged for urgent review
-    </div>
-    <div>
-      <strong>{{ queue_totals.processing }}</strong>
-      <br>
-      Awaiting rules processing
-    </div>
-  </div>
+  </section>
   {% if engine_mode == "shadow" %}
     <p>Decision support is in shadow mode. Assessments are not shown to reviewers.</p>
   {% elif engine_mode == "review" %}
